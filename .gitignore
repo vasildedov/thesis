@@ -168,6 +168,7 @@ cython_debug/
 *.pdf
 *.xlsx
 *.docx
+*.doc
 *.ppsx
 *.tsf
 
