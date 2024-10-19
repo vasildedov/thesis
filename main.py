@@ -1,37 +1,9 @@
-"""
-from TSForecasting.utils.data_loader import convert_tsf_to_dataframe
-
-loaded_data, frequency, forecast_horizon, contain_missing_values, contain_equal_length = convert_tsf_to_dataframe("TSForecasting/tsf_data/sample.tsf")
-
-from datasetsforecast.m3 import M3
-
-df = M3.load(directory='data', group='Yearly')
-df1 = M3.load(directory='data', group='Monthly')
-df2 = M3.load(directory='data', group='Quarterly')
-df3 = M3.load(directory='data', group='Other')
-
-from datasetsforecast.m4 import M4, M4Info
-df4 = M4.load(directory='data', group='Yearly')
-df5 = M4.load(directory='data', group='Quarterly')
-df6_train, hi, df6_test = M4.load(directory='data', group='Monthly')
-df7_train, hi, df7_test = M4.load(directory='data', group='Weekly')
-df8_train, hi, df8_test = M4.load(directory='data', group='Daily')
-df9_train, hi, df9_test = M4.load(directory='data', group='Hourly')
-
-from datasetsforecast.long_horizon import LongHorizon
-df = LongHorizon.load(directory='data', group='ETTh2')
-"""
-
-import random
-
-import lightgbm as lgb
-import matplotlib.pyplot as plt
-import pandas as pd
 from datasetsforecast.m4 import M4, M4Evaluation, M4Info
-from mlforecast import MLForecast
-from window_ops.expanding import expanding_mean
-from window_ops.ewm import ewm_mean
-from window_ops.rolling import rolling_mean, seasonal_rolling_mean
+from torch.utils.data import Dataset, DataLoader
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader
 
 def train_valid_split(group):
     df, *_ = M4.load(directory='data', group=group)
@@ -43,57 +15,118 @@ def train_valid_split(group):
 
 hourly_train, hourly_valid = train_valid_split('Hourly')
 
-%%time
-lgb_params = {
-    'n_estimators': 200,
-    'bagging_freq': 1,
-    'learning_rate': 0.05,
-    'verbose': -1,
-    'force_col_wise': True,
-    'num_leaves': 2500,
-    'lambda_l1': 0.03,
-    'lambda_l2': 0.5,
-    'bagging_fraction': 0.9,
-    'feature_fraction': 0.8,
-}
-hourly_fcst = MLForecast(
-    models=lgb.LGBMRegressor(**lgb_params),
-    freq=1,
-    lags=[24 * i for i in range(1, 15)],
-    lag_transforms={
-        24: [(ewm_mean, 0.3), (rolling_mean, 7 * 24), (rolling_mean, 7 * 48)],
-        48: [(ewm_mean, 0.3), (rolling_mean, 7 * 24), (rolling_mean, 7 * 48)],
-    },
-    num_threads=4,
-)
-hourly_fcst.fit(
-    hourly_train,
-    id_col='unique_id',
-    time_col='ds',
-    target_col='y',
-)
+# Custom PyTorch Dataset for hourly_train
+class HourlyDataset(Dataset):
+    def __init__(self, dataframe, seq_length):
+        """
+        Args:
+            dataframe (DataFrame): The pandas dataframe containing unique_id, ds, and y.
+            seq_length (int): The length of the input sequence.
+        """
+        self.data = dataframe
+        self.seq_length = seq_length
 
-%time hourly_preds = hourly_fcst.predict(48)
-M4Evaluation.evaluate('data', 'Hourly', hourly_preds['LGBMRegressor'].values.reshape(-1, 48))
+        # Group the dataframe by unique_id to keep each time series separate
+        self.groups = {uid: group for uid, group in self.data.groupby('unique_id')}
+
+        # Get a list of unique ids (keys) to index the time series
+        self.unique_ids = list(self.groups.keys())
+
+    def __len__(self):
+        # Return the number of unique time series
+        return len(self.unique_ids)
+
+    def __getitem__(self, idx):
+        # Get the time series corresponding to the unique_id at the given index
+        unique_id = self.unique_ids[idx]  # Get unique_id by index
+        group = self.groups[unique_id]    # Get the group (time series) for the unique_id
+
+        # Extract the 'y' values as the time series
+        series = group['y'].values
+
+        # Ensure the series is long enough for the sequence length
+        if len(series) < self.seq_length + 1:
+            # Pad with zeros if too short
+            series = torch.cat([torch.zeros(self.seq_length + 1 - len(series)), torch.tensor(series)])
+
+        inputs = torch.tensor(series[:self.seq_length], dtype=torch.float32)
+        target = torch.tensor(series[self.seq_length], dtype=torch.float32)
+
+        return inputs, target
+
+# Define the sequence length (number of previous time steps used as input)
+seq_length = 2
+
+# Create dataset
+dataset = HourlyDataset(dataframe=hourly_train, seq_length=seq_length)
+dataloader = DataLoader(dataset, batch_size=1, shuffle=True)
+
+# Example loop to load data
+for batch_inputs, batch_targets in dataloader:
+    print("Input batch:", batch_inputs)
+    print("Target batch:", batch_targets)
 
 
-from statsforecast import StatsForecast
-from statsforecast.models import AutoARIMA
+# Example PyTorch model (e.g., LSTM for time series forecasting)
+class SimpleLSTM(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size, num_layers=1):
+        super(SimpleLSTM, self).__init__()
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
+        self.fc = nn.Linear(hidden_size, output_size)
 
-sf = StatsForecast(
-    models=[AutoARIMA()],
-    freq='H',
-)
+    def forward(self, x):
+        # LSTM forward pass
+        lstm_out, _ = self.lstm(x)
+        # Take the last output of the sequence for the forecast
+        out = self.fc(lstm_out[:, -1, :])
+        return out
+
+# Hyperparameters
+input_size = 1         # Input features (e.g., 'y' values from the time series)
+hidden_size = 64       # LSTM hidden layer size
+output_size = 1        # Single value prediction (regression)
+num_layers = 1         # Number of LSTM layers
+seq_length = 2         # As defined in your dataset
+batch_size = 1         # Batch size
 
 
-sf.fit(hourly_train[:100])
+# Initialize model, loss function, and optimizer
+model = SimpleLSTM(input_size=input_size, hidden_size=hidden_size, output_size=output_size)
+criterion = nn.MSELoss()  # Mean Squared Error for regression tasks
+optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-forecasts_df = sf.forecast(df=hourly_train[:100], h=48, level=[90])
+# Example DataLoader (from the dataset we previously defined)
+dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
-crossvaldation_df = sf.cross_validation(
-    df=hourly_train[:100],
-    h=24,
-    step_size=24,
-    n_windows=2
-)
+# Training loop
+num_epochs = 10
+for epoch in range(num_epochs):
+    for batch_inputs, batch_targets in dataloader:
+        # Reshape inputs for LSTM (batch_size, seq_length, input_size)
+        batch_inputs = batch_inputs.unsqueeze(-1)  # Add the input size dimension
+        batch_targets = batch_targets.unsqueeze(-1)  # Make targets 2D to match the output size
+
+        # Zero the gradients
+        optimizer.zero_grad()
+
+        # Forward pass
+        outputs = model(batch_inputs)
+
+        # Compute the loss
+        loss = criterion(outputs, batch_targets)
+
+        # Backward pass and optimize
+        loss.backward()
+        optimizer.step()
+
+    print(f'Epoch [{epoch + 1}/{num_epochs}], Loss: {loss.item():.4f}')
+
+# Example of using the DataLoader for predictions (no training)
+model.eval()  # Set the model to evaluation mode (no gradients needed)
+with torch.no_grad():
+    for batch_inputs, batch_targets in dataloader:
+        batch_inputs = batch_inputs.unsqueeze(-1)
+        outputs = model(batch_inputs)
+        print("Predictions:", outputs)
+        print("Actual:", batch_targets)
 
