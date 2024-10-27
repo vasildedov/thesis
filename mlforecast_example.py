@@ -20,7 +20,19 @@ def train_valid_split(group):
 
 hourly_train, hourly_valid = train_valid_split('Hourly')
 
-%%time
+from sklearn.preprocessing import StandardScaler
+
+def standardize_series(train_df, valid_df):
+    scaler = StandardScaler()
+
+    # Fit the scaler on the training data only
+    train_df['y'] = scaler.fit_transform(train_df[['y']])
+
+    # Transform the validation data using the scaler from the training data
+    valid_df['y'] = scaler.transform(valid_df[['y']])
+
+    return train_df, valid_df, scaler
+
 lgb_params = {
     'n_estimators': 200,
     'bagging_freq': 1,
@@ -50,6 +62,6 @@ hourly_fcst.fit(
     target_col='y',
 )
 
-%time hourly_preds = hourly_fcst.predict(48)
+hourly_preds = hourly_fcst.predict(48)
 M4Evaluation.evaluate('data', 'Hourly', hourly_preds['LGBMRegressor'].values.reshape(-1, 48))
 
