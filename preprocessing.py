@@ -1,11 +1,10 @@
-from datasetsforecast.m4 import M4, M4Evaluation, M4Info
 import pandas as pd
-from sklearn.preprocessing import StandardScaler
 import numpy as np
 import lightgbm as lgb
-import xgboost as xgb
+from sklearn.preprocessing import StandardScaler
+from datasetsforecast.m4 import M4, M4Info
 
-
+# Load the dataset
 def train_test_split(group):
     df, *_ = M4.load(directory='data', group=group)
     df['ds'] = df['ds'].astype('int')
@@ -14,35 +13,7 @@ def train_test_split(group):
     train = df.drop(valid.index)
     return train, valid
 
-
-hourly_train, hourly_test = train_test_split('Hourly')
-
-
-# Function to standardize training and validation sets separately
-def standardize_series(train_df, valid_df):
-    scaler = StandardScaler()
-
-    # Fit the scaler on the training data only
-    train_df['y'] = scaler.fit_transform(train_df[['y']])
-
-    # Transform the validation data using the scaler from the training data
-    valid_df['y'] = scaler.transform(valid_df[['y']])
-
-    return train_df, valid_df, scaler
-
-
-# Function to ensure consistent time indexing
-def ensure_time_index(df):
-    df['ds'] = pd.to_datetime(df['ds'])  # Convert to datetime if not already
-    df = df.sort_values(['unique_id', 'ds']).reset_index(drop=True)
-    return df
-
-
-# Usage example (assuming `train` and `valid` dataframes)
-# train = ensure_time_index(hourly_train)
-# valid = ensure_time_index(hourly_valid)
-train, test, scaler = standardize_series(hourly_train, hourly_test)
-
+train, test = train_test_split('Hourly')
 
 # Function to create training windows
 def create_train_windows(df, look_back, horizon):
@@ -79,7 +50,6 @@ class LGBMModel:
 lgbm_model = LGBMModel()
 lgbm_model.fit(X_train, y_train)
 
-
 # Prepare the test window (last 60 hours of each series from the training set)
 def create_test_windows(df, look_back):
     X_test = []
@@ -103,7 +73,6 @@ def recursive_predict(model, X_input, horizon):
 
 # Predict on the test set
 y_pred = recursive_predict(lgbm_model, X_test, horizon)
-
 
 # Function to calculate sMAPE
 def calculate_smape(y_true, y_pred, epsilon=1e-10):
