@@ -40,86 +40,57 @@ def ensure_time_index(df):
 # train = ensure_time_index(hourly_train)
 # valid = ensure_time_index(hourly_valid)
 train, test, scaler = standardize_series(hourly_train, hourly_test)
-
-
-def create_train_windows(df, look_back, horizon):
-    """
-    Creates sliding windows from the training time series data.
-
-    Parameters:
-    - df (pd.DataFrame): Training DataFrame with columns `unique_id`, `ds`, and `y`.
-    - look_back (int): Number of time steps to look back for each input window.
-    - horizon (int): Number of time steps to predict for each output window.
-
-    Returns:
-    - X (np.array): Array of input sequences (shape: [samples, look_back + 1]).
-    - y (np.array): Array of output sequences (shape: [samples, horizon]).
-    - series_ids (np.array): Array of series identifiers for each sample.
-    """
-    X, y, series_ids = [], [], []
-
-    for series_id, group in df.groupby("unique_id"):
-        series = group["y"].values
-        # Extract the integer part from the unique_id (e.g., 'H1' -> 1)
-        series_id_int = int(series_id[1:])  # Assuming unique_id is of the form 'H1', 'H2', etc.
-
-        for i in range(len(series) - look_back - horizon + 1):
-            # Include unique ID as the first feature
-            X.append(np.concatenate(([series_id_int], series[i: i + look_back])))
-            y.append(series[i + look_back: i + look_back + horizon])
-            series_ids.append(series_id_int)
-
-    return np.array(X), np.array(y), np.array(series_ids)
-
-
-def create_valid_windows(df, look_back):
-    """
-    Creates sliding windows from the validation time series data.
-
-    Parameters:
-    - df (pd.DataFrame): Validation DataFrame with columns `unique_id`, `ds`, and `y`.
-    - look_back (int): Number of time steps to look back for each input window.
-
-    Returns:
-    - X (np.array): Array of input sequences (shape: [samples, look_back + 1]).
-    - series_ids (np.array): Array of series identifiers for each sample.
-    """
-    X, series_ids = [], []
-
-    for series_id, group in df.groupby("unique_id"):
-        series = group["y"].values
-        # Extract the integer part from the unique_id (e.g., 'H1' -> 1)
-        series_id_int = int(series_id[1:])  # Assuming unique_id is of the form 'H1', 'H2', etc.
-
-        # Only create windows up to the start of the forecast horizon
-        for i in range(len(series) - look_back):
-            # Include unique ID as the first feature
-            X.append(np.concatenate(([series_id_int], series[i: i + look_back])))
-            series_ids.append(series_id_int)
-
-    return np.array(X), np.array(series_ids)
-
-
-# Parameters for the sliding window
-look_back = 24  # Use 24 hours for both training and validation
-horizon = 48  # Forecast horizon of 48 hours
-
-# Generate windows for training
-X_train, y_train, train_ids = create_train_windows(train, look_back, horizon)
-
-# Generate windows for validation (only input sequences)
-X_test, test_ids = create_valid_windows(test, look_back)
-
 import numpy as np
 import pandas as pd
 import lightgbm as lgb
 import xgboost as xgb
 
 
-# Cross-validation for the global model
-def time_series_cv(df, look_back, horizon, model, n_splits=5):
+# Function to generate input windows for cross-validation using temporal splits
+def create_temporal_cv_windows(df, look_back, horizon, n_splits):
+    train_splits, valid_splits = [], []
+
+    # Iterate over each unique time series in the dataframe
+    for series_id, group in df.groupby("unique_id"):
+        series = group["y"].values
+        # Extract the integer part from the unique_id (e.g., 'H1' -> 1)
+        series_id_int = int(series_id[1:])  # Assuming unique_id is in the format 'H<number>'
+
+        # Define the split size based on the number of splits
+        split_size = len(series) // (n_splits + 1)
+
+        # Create train-validation pairs for each fold
+        for i in range(n_splits):
+            train_end = (i + 1) * split_size
+            valid_start = train_end
+            valid_end = valid_start + split_size
+
+            # Ensure validation set does not exceed series length
+            if valid_end > len(series):
+                break
+
+            # Generate training windows for the current fold
+            X_train, y_train = [], []
+            for j in range(train_end - look_back):
+                X_train.append(np.concatenate(([series_id_int], series[j: j + look_back])))
+                y_train.append(series[j + look_back: j + look_back + horizon])
+
+            # Generate validation windows for the current fold
+            X_valid, y_valid = [], []
+            for j in range(valid_start, valid_end - look_back):
+                X_valid.append(np.concatenate(([series_id_int], series[j: j + look_back])))
+                y_valid.append(series[j + look_back: j + look_back + horizon])
+
+            train_splits.append((np.array(X_train), np.array(y_train)))
+            valid_splits.append((np.array(X_valid), np.array(y_valid)))
+
+    return train_splits, valid_splits
+
+
+# Cross-validation for temporal splits
+def temporal_cross_validation(df, look_back, horizon, model, n_splits=5):
     """
-    Time series cross-validation for a global model.
+    Train and validate a global model using temporal cross-validation splits.
 
     Parameters:
     - df (pd.DataFrame): DataFrame with columns `unique_id`, `ds`, and `y`.
@@ -131,42 +102,36 @@ def time_series_cv(df, look_back, horizon, model, n_splits=5):
     Returns:
     - results (list): List of evaluation metrics for each fold.
     """
+    train_splits, valid_splits = create_temporal_cv_windows(df, look_back, horizon, n_splits)
     results = []
 
-    # Generate windows for all series
-    X_all, y_all, _ = create_train_windows(df, look_back, horizon)
-
-    total_length = len(X_all)
-    split_size = total_length // n_splits
-
-    for i in range(n_splits):
-        # Split the dataset for cross-validation
-        train_end = (i + 1) * split_size
-        valid_start = train_end
-        valid_end = train_end + split_size
-
-        X_train, y_train = X_all[:train_end], y_all[:train_end]
-        X_valid, y_valid = X_all[valid_start:valid_end], y_all[valid_start:valid_end]
-
+    for i, ((X_train, y_train), (X_valid, y_valid)) in enumerate(zip(train_splits, valid_splits)):
         # Fit the model on the training set
         model.fit(X_train, y_train)  # Assuming a fit method exists for the model
-
         # Predict on the validation set using recursive prediction
         y_pred = recursive_predict(model, X_valid, horizon)
+        print(X_train.shape, y_train.shape, X_valid.shape, y_valid.shape, y_pred.shape)
 
         # Evaluate the model
         smape = calculate_smape(y_valid, y_pred)
         mae = np.mean(np.abs(y_valid - y_pred))
         rmse = np.sqrt(np.mean((y_valid - y_pred) ** 2))
         mse = np.mean((y_valid - y_pred) ** 2)
-        results.append((smape, mae, rmse, mse))
+
+        results.append({
+            "fold": i + 1,
+            "sMAPE": smape,
+            "MAE": mae,
+            "RMSE": rmse,
+            "MSE": mse
+        })
 
         print(f"Fold {i + 1}: sMAPE = {smape:.4f}, MAE = {mae:.4f}, RMSE = {rmse:.4f}, MSE = {mse:.4f}")
 
     return results
 
 
-# Recursive prediction function for multi-step prediction
+# Recursive prediction function for multi-step prediction (same as before)
 def recursive_predict(model, X_input, horizon):
     predictions = []
     X_current = X_input
@@ -227,7 +192,7 @@ xgb_model = XGBModel()
 
 # Assume `train` is the preprocessed dataframe with columns `unique_id`, `ds`, and `y`
 print("LightGBM Model Cross-Validation Results:")
-lgbm_results = time_series_cv(train, look_back, horizon, lgbm_model, n_splits)
+lgbm_results = temporal_cross_validation(train, look_back, horizon, lgbm_model, n_splits)
 
 print("\nXGBoost Model Cross-Validation Results:")
-xgb_results = time_series_cv(train, look_back, horizon, xgb_model, n_splits)
+xgb_results = temporal_cross_validation(train, look_back, horizon, xgb_model, n_splits)
