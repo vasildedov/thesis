@@ -3,7 +3,7 @@ import numpy as np
 from sklearn.preprocessing import StandardScaler
 from datasetsforecast.m4 import M4, M4Info, M4Evaluation
 from utils.preprocess_M4 import train_test_split, create_train_windows, create_test_windows, recursive_predict
-from utils.ml_models import LGBMModel, calculate_smape, XGBModel
+from utils.ml_models import LGBMModel, calculate_smape, XGBModel, LGBMHyperModel
 
 train, test = train_test_split('Hourly')
 
