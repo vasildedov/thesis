@@ -2,7 +2,7 @@ import lightgbm as lgb
 import numpy as np
 import xgboost as xgb
 from sklearn.model_selection import GridSearchCV
-
+import catboost as cb
 
 def calculate_smape(y_true, y_pred, epsilon=1e-10):
     return 100 * np.mean(np.abs(y_pred - y_true) / ((np.abs(y_true) + np.abs(y_pred)) / 2 + epsilon))
@@ -49,6 +49,26 @@ class XGBModel:
     def fit(self, X, y):
         y_flat = y[:, 0]  # Predict the first value of the horizon
         self.model.fit(X, y_flat)
+
+    def predict(self, X):
+        return self.model.predict(X).reshape(-1, 1)
+
+
+# CatBoost model setup with GPU and hyperparameter tuning
+class CatBoostModel:
+    def __init__(self):
+        self.model = cb.CatBoostRegressor(verbose=0, task_type='GPU')
+
+    def fit(self, X, y):
+        y_flat = y[:, 0]  # Predict the first value of the horizon
+        param_grid = {
+            'depth': [6, 8, 10],
+            'learning_rate': [0.01, 0.05, 0.1],
+            'iterations': [500, 1000]
+        }
+        grid_search = GridSearchCV(self.model, param_grid, cv=3, scoring='neg_mean_absolute_error')
+        grid_search.fit(X, y_flat)
+        self.model = grid_search.best_estimator_
 
     def predict(self, X):
         return self.model.predict(X).reshape(-1, 1)
