@@ -1,9 +1,4 @@
 from datasetsforecast.m4 import M4, M4Evaluation, M4Info
-from torch.utils.data import Dataset, DataLoader
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader
 
 def train_valid_split(group):
     df, *_ = M4.load(directory='data', group=group)
@@ -15,118 +10,133 @@ def train_valid_split(group):
 
 hourly_train, hourly_valid = train_valid_split('Hourly')
 
-# Custom PyTorch Dataset for hourly_train
-class HourlyDataset(Dataset):
-    def __init__(self, dataframe, seq_length):
+import torch
+from torch.utils.data import Dataset, DataLoader
+
+class M4TimeSeriesDataset(Dataset):
+    def __init__(self, dataframe):
         """
-        Args:
-            dataframe (DataFrame): The pandas dataframe containing unique_id, ds, and y.
-            seq_length (int): The length of the input sequence.
+        Initialize the dataset with the dataframe containing the time series data.
         """
         self.data = dataframe
-        self.seq_length = seq_length
-
-        # Group the dataframe by unique_id to keep each time series separate
-        self.groups = {uid: group for uid, group in self.data.groupby('unique_id')}
-
-        # Get a list of unique ids (keys) to index the time series
-        self.unique_ids = list(self.groups.keys())
+        self.groups = dataframe.groupby('unique_id')
+        self.series_list = list(self.groups)
 
     def __len__(self):
-        # Return the number of unique time series
-        return len(self.unique_ids)
+        return len(self.series_list)
 
     def __getitem__(self, idx):
-        # Get the time series corresponding to the unique_id at the given index
-        unique_id = self.unique_ids[idx]  # Get unique_id by index
-        group = self.groups[unique_id]    # Get the group (time series) for the unique_id
-
-        # Extract the 'y' values as the time series
-        series = group['y'].values
-
-        # Ensure the series is long enough for the sequence length
-        if len(series) < self.seq_length + 1:
-            # Pad with zeros if too short
-            series = torch.cat([torch.zeros(self.seq_length + 1 - len(series)), torch.tensor(series)])
-
-        inputs = torch.tensor(series[:self.seq_length], dtype=torch.float32)
-        target = torch.tensor(series[self.seq_length], dtype=torch.float32)
-
-        return inputs, target
-
-# Define the sequence length (number of previous time steps used as input)
-seq_length = 2
-
-# Create dataset
-dataset = HourlyDataset(dataframe=hourly_train, seq_length=seq_length)
-dataloader = DataLoader(dataset, batch_size=1, shuffle=True)
-
-# Example loop to load data
-for batch_inputs, batch_targets in dataloader:
-    print("Input batch:", batch_inputs)
-    print("Target batch:", batch_targets)
+        """
+        Return the full time series for a specific unique_id as a PyTorch tensor.
+        """
+        unique_id, series_data = self.series_list[idx]
+        values = torch.tensor(series_data['y'].values, dtype=torch.float32)
+        return values, unique_id
 
 
-# Example PyTorch model (e.g., LSTM for time series forecasting)
-class SimpleLSTM(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, num_layers=1):
-        super(SimpleLSTM, self).__init__()
-        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
+import torch.nn as nn
+
+
+class SimpleRNN(nn.Module):
+    def __init__(self, input_size=1, hidden_size=20, num_layers=1, output_size=1):
+        super(SimpleRNN, self).__init__()
+        self.rnn = nn.RNN(input_size, hidden_size, num_layers, batch_first=True)
         self.fc = nn.Linear(hidden_size, output_size)
 
     def forward(self, x):
-        # LSTM forward pass
-        lstm_out, _ = self.lstm(x)
-        # Take the last output of the sequence for the forecast
-        out = self.fc(lstm_out[:, -1, :])
-        return out
+        rnn_out, _ = self.rnn(x)
+        out = self.fc(rnn_out)
+        return out.squeeze(-1)  # Remove last dimension for compatibility
 
-# Hyperparameters
-input_size = 1         # Input features (e.g., 'y' values from the time series)
-hidden_size = 64       # LSTM hidden layer size
-output_size = 1        # Single value prediction (regression)
-num_layers = 1         # Number of LSTM layers
-seq_length = 2         # As defined in your dataset
-batch_size = 1         # Batch size
+import torch.optim as optim
+device = torch.device("cuda:0")
 
 
-# Initialize model, loss function, and optimizer
-model = SimpleLSTM(input_size=input_size, hidden_size=hidden_size, output_size=output_size)
-criterion = nn.MSELoss()  # Mean Squared Error for regression tasks
+def train_model(model, train_loader, valid_loader, criterion, optimizer, num_epochs=10):
+    model.train()
+    train_losses, valid_losses = [], []
+
+    for epoch in range(num_epochs):
+        running_loss = 0.0
+
+        for inputs, _ in train_loader:
+            inputs = inputs.unsqueeze(-1).to(device)  # Add feature dimension
+            optimizer.zero_grad()
+            outputs = model(inputs)
+
+            # Predict the next value for each time step
+            targets = inputs[:, 1:, 0]  # Shifted target sequence
+            loss = criterion(outputs[:, :-1], targets)
+            loss.backward()
+            optimizer.step()
+            running_loss += loss.item()
+
+        avg_train_loss = running_loss / len(train_loader)
+        train_losses.append(avg_train_loss)
+
+        # Validation
+        model.eval()
+        val_loss = 0.0
+        with torch.no_grad():
+            for inputs, _ in valid_loader:
+                inputs = inputs.unsqueeze(-1).to(device)
+                outputs = model(inputs)
+                targets = inputs[:, 1:, 0]
+                loss = criterion(outputs[:, :-1], targets)
+                val_loss += loss.item()
+
+        avg_val_loss = val_loss / len(valid_loader)
+        valid_losses.append(avg_val_loss)
+        print(f"Epoch {epoch+1}/{num_epochs}, Train Loss: {avg_train_loss:.4f}, Val Loss: {avg_val_loss:.4f}")
+        model.train()
+
+    return train_losses, valid_losses
+
+# Set device
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# Model parameters
+input_size = 1
+hidden_size = 20
+output_size = 1
+num_layers = 1
+num_epochs = 10
+
+# Instantiate model, criterion, and optimizer
+model = SimpleRNN(input_size, hidden_size, num_layers, output_size).to(device)
+criterion = nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-# Example DataLoader (from the dataset we previously defined)
-dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+# DataLoaders
+train_loader = DataLoader(M4TimeSeriesDataset(hourly_train), batch_size=1, shuffle=True)
+valid_loader = DataLoader(M4TimeSeriesDataset(hourly_valid), batch_size=1, shuffle=False)
 
-# Training loop
-num_epochs = 10
-for epoch in range(num_epochs):
-    for batch_inputs, batch_targets in dataloader:
-        # Reshape inputs for LSTM (batch_size, seq_length, input_size)
-        batch_inputs = batch_inputs.unsqueeze(-1)  # Add the input size dimension
-        batch_targets = batch_targets.unsqueeze(-1)  # Make targets 2D to match the output size
+# Train the model
+train_losses, valid_losses = train_model(model, train_loader, valid_loader, criterion, optimizer, num_epochs)
 
-        # Zero the gradients
-        optimizer.zero_grad()
+import matplotlib.pyplot as plt
 
-        # Forward pass
-        outputs = model(batch_inputs)
+# Plot training and validation loss
+plt.plot(train_losses, label='Train Loss')
+plt.plot(valid_losses, label='Validation Loss')
+plt.xlabel("Epoch")
+plt.ylabel("Loss")
+plt.legend()
+plt.show()
 
-        # Compute the loss
-        loss = criterion(outputs, batch_targets)
-
-        # Backward pass and optimize
-        loss.backward()
-        optimizer.step()
-
-    print(f'Epoch [{epoch + 1}/{num_epochs}], Loss: {loss.item():.4f}')
-
-# Example of using the DataLoader for predictions (no training)
-model.eval()  # Set the model to evaluation mode (no gradients needed)
+# Plot predictions vs actuals on validation set
+model.eval()
 with torch.no_grad():
-    for batch_inputs, batch_targets in dataloader:
-        batch_inputs = batch_inputs.unsqueeze(-1)
-        outputs = model(batch_inputs)
-        print("Predictions:", outputs)
-        print("Actual:", batch_targets)
+    for i, (inputs, _) in enumerate(valid_loader):
+        inputs = inputs.unsqueeze(-1).to(device)
+        outputs = model(inputs)
 
+        # Plot first validation series
+        if i == 0:
+            plt.plot(inputs.squeeze().cpu().numpy(), label='Actual')
+            plt.plot(outputs.squeeze().cpu().numpy(), label='Predicted')
+            plt.xlabel("Time Step")
+            plt.ylabel("Value")
+            plt.legend()
+            plt.show()
+            break
