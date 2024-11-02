@@ -2,14 +2,17 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 from datasetsforecast.m4 import M4, M4Info, M4Evaluation
-from utils.ml_preprocess_M4 import train_test_split, create_train_windows, create_test_windows, recursive_predict
-from utils.ml_models import LGBMModel, calculate_smape, XGBModel, LGBMHyperModel, CatBoostModel
+from utils.ml_preprocess_M4 import train_test_split, create_train_windows, create_test_windows, recursive_predict, truncate_series
+from utils.ml_models import LGBMModel, calculate_smape, XGBModel, CatBoostModel
 
-train, test = train_test_split('Hourly')
+train, test = train_test_split('Daily')
 
 # Parameters for the sliding window
-look_back = 60  # Look-back window of 60 hours
-horizon = 48  # Forecast horizon of 48 hours
+look_back = 30  # Look-back window of 30 days
+horizon = 14  # Forecast horizon of 13 hours
+
+# truncate long series
+train = truncate_series(train, max_length=200)
 
 # Generate windows for training
 X_train, y_train, train_ids = create_train_windows(train, look_back, horizon)
@@ -21,11 +24,11 @@ lgbm_model.fit(X_train, y_train)
 xgb_model = XGBModel()
 xgb_model.fit(X_train, y_train)
 
-catboost_model = CatBoostModel()
+catboost_model = CatBoostModel(hyper_parametrize=False)
 catboost_model.fit(X_train, y_train)
 
 # Ensemble prediction using averaging
-# Prepare the test window (last 60 hours of each series from the training set)
+# Prepare the test window (last 30 days of each series from the training set)
 X_test = create_test_windows(train, look_back)
 
 # Predict on the test set
@@ -42,10 +45,10 @@ y_true = test['y'].values.reshape(-1, horizon)
 print(f"sMAPE: {calculate_smape(y_true, y_pred):.4f}")
 
 # equivalent
-print('LGBM evaluation:\n', M4Evaluation.evaluate('data', 'Hourly', y_pred))
+print('LGBM evaluation:\n', M4Evaluation.evaluate('data', 'Daily', y_pred))
 
-print('XGB evaluation:\n', M4Evaluation.evaluate('data', 'Hourly', y_pred_xgb))
+print('XGB evaluation:\n', M4Evaluation.evaluate('data', 'Daily', y_pred_xgb))
 
-print('Catboost evaluation:\n', M4Evaluation.evaluate('data', 'Hourly', y_pred_cb))
+print('Catboost evaluation:\n', M4Evaluation.evaluate('data', 'Daily', y_pred_cb))
 
-print('Ensemble evaluation:\n', M4Evaluation.evaluate('data', 'Hourly', y_pred_ens))
+print('Ensemble evaluation:\n', M4Evaluation.evaluate('data', 'Daily', y_pred_ens))
