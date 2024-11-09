@@ -46,28 +46,28 @@ def create_test_windows(df, look_back):
 X_test_rnn = create_test_windows(train, look_back)
 
 
-# Define a simple LSTM model
-class SimpleRNN(nn.Module):
-    def __init__(self, input_size=1, hidden_size=50, output_size=horizon):
-        super(SimpleRNN, self).__init__()
-        self.lstm = nn.LSTM(input_size, hidden_size, batch_first=True)
+# Define a more complex LSTM model
+class ComplexLSTM(nn.Module):
+    def __init__(self, input_size=1, hidden_size=100, num_layers=3, dropout=0.3, output_size=horizon):
+        super(ComplexLSTM, self).__init__()
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, dropout=dropout, batch_first=True)
         self.fc = nn.Linear(hidden_size, output_size)
 
     def forward(self, x):
         h, _ = self.lstm(x)
-        h_last = h[:, -1, :]  # Last time step output
+        h_last = h[:, -1, :]  # Get the output of the last time step
         out = self.fc(h_last)
         return out
 
 
 # Model setup
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = SimpleRNN().to(device)
+model = ComplexLSTM(hidden_size=100, num_layers=3, dropout=0.3).to(device)
 criterion = nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
 # Training loop
-epochs = 10
+epochs = 20
 batch_size = 32
 X_train_rnn, y_train_rnn = X_train_rnn.to(device), y_train_rnn.to(device)
 
