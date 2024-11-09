@@ -35,14 +35,20 @@ X_test = create_test_windows(train, look_back)
 y_pred = recursive_predict(lgbm_model, X_test, horizon)
 y_pred_xgb = recursive_predict(xgb_model, X_test, horizon)
 y_pred_cb = recursive_predict(catboost_model, X_test, horizon)
+
+
 def ensemble_predict(models, X_input, horizon):
     model_predictions = [recursive_predict(model, X_input, horizon) for model in models]
     return np.mean(model_predictions, axis=0)
+
+
 # Predict on the test set using the ensemble
 y_pred_ens = ensemble_predict([lgbm_model, xgb_model, catboost_model], X_test, horizon)
+
 # Calculate sMAPE on the test dataset
 y_true = test['y'].values.reshape(-1, horizon)
 print(f"sMAPE: {calculate_smape(y_true, y_pred):.4f}")
+
 
 # equivalent
 print('LGBM evaluation:\n', M4Evaluation.evaluate('data', 'Daily', y_pred))
