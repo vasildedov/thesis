@@ -86,7 +86,7 @@ for epoch in range(epochs):
     print(f'Epoch [{epoch + 1}/{epochs}], Loss: {epoch_loss:.4f}')
 
 # Make predictions
-y_pred_rnn = recursive_predict_rnn(model, X_test_rnn, horizon, device)
+y_pred_rnn = recursive_predict_rnn(model, X_test_rnn, horizon, device, scalers, test.unique_id.unique())
 
 # Reshape predictions to match the expected shape (414 series, 48-hour horizon)
 y_pred_rnn = y_pred_rnn.reshape(test.unique_id.nunique(), horizon)
