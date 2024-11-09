@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 from datasetsforecast.m4 import M4, M4Info, M4Evaluation
-from utils.ml_preprocess_M4 import train_test_split, create_train_windows, create_test_windows, recursive_predict, truncate_series
+from utils.m4_preprocess_ml import train_test_split, create_train_windows, create_test_windows, recursive_predict, truncate_series
 from utils.ml_models import LGBMModel, calculate_smape, XGBModel, CatBoostModel
 
 train, test = train_test_split('Daily')
