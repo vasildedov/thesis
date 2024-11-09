@@ -35,7 +35,7 @@ def recursive_predict_arima(fitted_model, steps):
 # Train and forecast for each time series
 order = (10, 1, 1)  # Reduced look-back to 10 to speed up training  # Look-back of 60, similar to ML models
 seasonal_order = (0, 1, 0, 24)  # Simplified seasonal component to reduce complexity  # Handle daily seasonality without overlapping with non-seasonal components
-model_type = 'SARIMA'  # Change to 'ARIMA', 'SARIMA', or 'STL' as desired
+model_type = 'ARIMA'  # Change to 'ARIMA', 'SARIMA', or 'STL' as desired
 horizon = 48
 
 

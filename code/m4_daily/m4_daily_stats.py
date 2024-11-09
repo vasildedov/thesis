@@ -6,9 +6,10 @@ from utils.ml_preprocess_M4 import train_test_split
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from statsmodels.tsa.seasonal import STL
 from joblib import Parallel, delayed
+from utils.ml_preprocess_M4 import truncate_series
 
-
-train, test = train_test_split('Hourly')
+train, test = train_test_split('Daily')
+train = truncate_series(train, 200)
 
 
 def train_and_forecast(series, model_type, order=(1, 1, 1), seasonal_order=(1, 1, 1, 24), horizon=48):
@@ -33,10 +34,10 @@ def recursive_predict_arima(fitted_model, steps):
 
 
 # Train and forecast for each time series
-order = (10, 1, 1)  # Reduced look-back to 10 to speed up training  # Look-back of 60, similar to ML models
-seasonal_order = (0, 1, 0, 24)  # Simplified seasonal component to reduce complexity  # Handle daily seasonality without overlapping with non-seasonal components
-model_type = 'SARIMA'  # Change to 'ARIMA', 'SARIMA', or 'STL' as desired
-horizon = 48
+order = (5, 1, 1)  # Reduced look-back to 10 to speed up training  # Look-back of 60, similar to ML models
+seasonal_order = (1, 1, 0, 7)  # Seasonal component reflecting weekly pattern for daily dataset
+model_type = 'ARIMA'  # Change to 'ARIMA', 'SARIMA', or 'STL' as desired
+horizon = 14
 
 
 # Using parallel processing to speed up training and forecasting
@@ -50,4 +51,4 @@ forecasts = Parallel(n_jobs=-1)(
 y_true = test['y'].values.reshape(-1, horizon)
 y_pred = np.array(forecasts)
 
-print('evaluation:\n', M4Evaluation.evaluate('data', 'Hourly', y_pred))
+print('evaluation:\n', M4Evaluation.evaluate('data', 'Daily', y_pred))
