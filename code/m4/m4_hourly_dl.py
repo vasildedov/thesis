@@ -19,7 +19,7 @@ train, test = train_test_split('Hourly')
 # Generate training data windows
 X_train_rnn, y_train_rnn, scalers = create_rnn_windows(train, look_back, horizon)
 
-X_test_rnn = create_test_windows(train, look_back, scalers)
+X_test_rnn, series_ids = create_test_windows(train, look_back, scalers)
 
 # Model setup
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -50,7 +50,7 @@ for epoch in range(epochs):
 
 
 # Make predictions
-y_pred_lstm = recursive_predict_rnn(model, X_test_rnn, horizon, device, scalers, test.unique_id.unique())
+y_pred_lstm = recursive_predict_rnn(model, X_test_rnn, horizon, device, scalers, series_ids)
 
 # Reshape predictions to match the expected shape (414 series, 48-hour horizon)
 y_pred_lstm = y_pred_lstm.reshape(test.unique_id.nunique(), horizon)
@@ -86,7 +86,7 @@ for epoch in range(epochs):
     print(f'Epoch [{epoch + 1}/{epochs}], Loss: {epoch_loss:.4f}')
 
 # Make predictions
-y_pred_rnn = recursive_predict_rnn(model, X_test_rnn, horizon, device, scalers, test.unique_id.unique())
+y_pred_rnn = recursive_predict_rnn(model, X_test_rnn, horizon, device, scalers, series_ids)
 
 # Reshape predictions to match the expected shape (414 series, 48-hour horizon)
 y_pred_rnn = y_pred_rnn.reshape(test.unique_id.nunique(), horizon)
