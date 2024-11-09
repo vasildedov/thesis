@@ -23,7 +23,7 @@ X_test_rnn = create_test_windows(train, look_back)
 
 # Model setup
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = ComplexLSTM(hidden_size=100, num_layers=3, dropout=0.3).to(device)
+model = ComplexLSTM(hidden_size=100, num_layers=3, dropout=0.3, output_size=1).to(device)
 criterion = nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
@@ -41,7 +41,7 @@ for epoch in range(epochs):
         batch_X, batch_y = X_train_rnn[indices], y_train_rnn[indices]
 
         optimizer.zero_grad()
-        outputs = model(batch_X.unsqueeze(-1))  # Add feature dimension for RNN
+        outputs = model(batch_X.unsqueeze(-1)).squeeze(-1)  # Add feature dimension for RNN and adjust output
         loss = criterion(outputs, batch_y)
         loss.backward()
         optimizer.step()
@@ -64,7 +64,7 @@ print("LSTM Model Evaluation:\n", M4Evaluation.evaluate('data', 'Hourly', y_pred
 # RNN
 # Model setup
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = SimpleRNN(hidden_size=50, num_layers=2, dropout=0.3).to(device)
+model = SimpleRNN(hidden_size=50, num_layers=2, dropout=0.3, output_size=1).to(device)
 criterion = nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
@@ -78,7 +78,7 @@ for epoch in range(epochs):
         batch_X, batch_y = X_train_rnn[indices], y_train_rnn[indices]
 
         optimizer.zero_grad()
-        outputs = model(batch_X.unsqueeze(-1))  # Add feature dimension for RNN
+        outputs = model(batch_X.unsqueeze(-1)).squeeze(-1)  # Add feature dimension for RNN and adjust output
         loss = criterion(outputs, batch_y)
         loss.backward()
         optimizer.step()
@@ -86,7 +86,7 @@ for epoch in range(epochs):
     print(f'Epoch [{epoch + 1}/{epochs}], Loss: {epoch_loss:.4f}')
 
 # Make predictions
-y_pred_rnn = recursive_predict_rnn(model, X_test_rnn, horizon)
+y_pred_rnn = recursive_predict_rnn(model, X_test_rnn, horizon, device)
 
 # Reshape predictions to match the expected shape (414 series, 48-hour horizon)
 y_pred_rnn = y_pred_rnn.reshape(414, horizon)

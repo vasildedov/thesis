@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 import pandas as pd
-from utils.m4_preprocess_ml import train_test_split
+from utils.m4_preprocess_ml import train_test_split, truncate_series
 from datasetsforecast.m4 import M4, M4Info, M4Evaluation
 from utils.ml_models import calculate_smape
 from utils.m4_preprocess_dl import create_rnn_windows, create_test_windows, recursive_predict_rnn
@@ -10,11 +10,12 @@ from utils.dl_models import ComplexLSTM, SimpleRNN
 
 
 # Parameters
-look_back = 60  # Number of previous time steps for input
-horizon = 48  # Forecast horizon
+look_back = 30  # Number of previous time steps for input
+horizon = 14  # Forecast horizon
 
 # Load data
-train, test = train_test_split('Hourly')
+train, test = train_test_split('Daily')
+train = truncate_series(train, 200)
 
 # Generate training data windows
 X_train_rnn, y_train_rnn = create_rnn_windows(train, look_back, horizon)
@@ -23,7 +24,7 @@ X_test_rnn = create_test_windows(train, look_back)
 
 # Model setup
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = ComplexLSTM(hidden_size=100, num_layers=3, dropout=0.3).to(device)
+model = ComplexLSTM(hidden_size=100, num_layers=3, dropout=0.3, output_size=1).to(device)
 criterion = nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
@@ -64,7 +65,7 @@ print("LSTM Model Evaluation:\n", M4Evaluation.evaluate('data', 'Hourly', y_pred
 # RNN
 # Model setup
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = SimpleRNN(hidden_size=50, num_layers=2, dropout=0.3).to(device)
+model = SimpleRNN(hidden_size=50, num_layers=2, dropout=0.3, output_size=1).to(device)
 criterion = nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
