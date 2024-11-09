@@ -54,10 +54,10 @@ for epoch in range(epochs):
 y_pred_lstm = recursive_predict_rnn(model, X_test_rnn, horizon, device)
 
 # Reshape predictions to match the expected shape (414 series, 48-hour horizon)
-y_pred_lstm = y_pred_lstm.reshape(414, horizon)
+y_pred_lstm = y_pred_lstm.reshape(test.unique_id.nunique(), horizon)
 
 # Evaluate using sMAPE
-y_true = test['y'].values.reshape(414, horizon)
+y_true = test['y'].values.reshape(test.unique_id.nunique(), horizon)
 print(f"sMAPE for LSTM: {calculate_smape(y_true, y_pred_lstm):.4f}")
 print("LSTM Model Evaluation:\n", M4Evaluation.evaluate('data', 'Hourly', y_pred_lstm))
 
@@ -90,9 +90,9 @@ for epoch in range(epochs):
 y_pred_rnn = recursive_predict_rnn(model, X_test_rnn, horizon)
 
 # Reshape predictions to match the expected shape (414 series, 48-hour horizon)
-y_pred_rnn = y_pred_rnn.reshape(414, horizon)
+y_pred_rnn = y_pred_rnn.reshape(test.unique_id.nunique(), horizon)
 
 # Evaluate using sMAPE
-y_true = test['y'].values.reshape(414, horizon)
+y_true = test['y'].values.reshape(test.unique_id.nunique(), horizon)
 print(f"sMAPE for RNN: {calculate_smape(y_true, y_pred_rnn):.4f}")
 print("RNN Model Evaluation:\n", M4Evaluation.evaluate('data', 'Hourly', y_pred_rnn))
