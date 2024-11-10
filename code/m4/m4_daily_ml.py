@@ -15,7 +15,7 @@ horizon = 14  # Forecast horizon of 13 hours
 train = truncate_series(train, max_length=200)
 
 # Generate windows for training
-X_train, y_train, train_ids = create_train_windows(train, look_back, horizon)
+X_train, y_train = create_train_windows(train, look_back, horizon)
 
 # Instantiate and train the model
 lgbm_model = LGBMModel()
