@@ -11,20 +11,19 @@ def create_rnn_windows(df, look_back, horizon):
         series = group["y"].values.reshape(-1, 1)
         scaler = StandardScaler()
         scaled_series = scaler.fit_transform(series).flatten()  # Scale each series individually
-        scalers[series_id] = scaler  # Save the scaler for each series
-
-        # Extract integer identifier from `series_id`
-        series_id_int = int(series_id[1:])  # Assuming unique_id is of the form 'H1', 'H2', etc.
+        # Store scaler with integer key (e.g., 'D1' -> 1, 'H2' -> 2)
+        series_id_int = int(series_id[1:])  # Extract integer part of the ID
+        scalers[series_id_int] = scaler
 
         for i in range(len(scaled_series) - look_back - horizon + 1):
-            # Concatenate the series identifier as the first element in the input window
             X.append(np.concatenate(([series_id_int], scaled_series[i: i + look_back])))
             y.append(scaled_series[i + look_back])  # Only take the next step as target
             series_ids.append(series_id_int)
 
     X = torch.tensor(np.array(X), dtype=torch.float32)
     y = torch.tensor(np.array(y), dtype=torch.float32)
-    return X, y, scalers  # Return scalers to reverse the scaling for each series
+    return X, y, scalers  # Return scalers with integer keys
+
 
 # Prepare test data: Use the last `look_back` steps from each series in train and include series ID
 def create_test_windows(df, look_back, scalers):
@@ -32,17 +31,19 @@ def create_test_windows(df, look_back, scalers):
 
     for series_id, group in df.groupby("unique_id"):
         series = group["y"].values.reshape(-1, 1)
-        scaler = scalers[series_id]  # Retrieve scaler for the series
+        # Convert `series_id` to integer for scaler lookup
+        series_id_int = int(series_id[1:])
+        scaler = scalers[series_id_int]  # Retrieve scaler using the integer part of the ID
         scaled_series = scaler.transform(series).flatten()  # Scale using the training scaler
-        series_id_int = int(series_id[1:])  # Extract integer identifier
 
         # Concatenate the series identifier as the first element in the test window
         window_with_id = np.concatenate(([series_id_int], scaled_series[-look_back:]))
         X_test.append(window_with_id)
-        series_ids.append(series_id_int)
+        series_ids.append(series_id_int)  # Store the integer identifier only
 
     X_test = torch.tensor(np.array(X_test), dtype=torch.float32)
     return X_test.unsqueeze(-1), np.array(series_ids)  # Adding feature dimension for RNN
+
 
 # Recursive prediction function for multi-step horizon with reverse scaling
 def recursive_predict_rnn(model, X_input, horizon, device, scalers, series_ids):
@@ -61,8 +62,25 @@ def recursive_predict_rnn(model, X_input, horizon, device, scalers, series_ids):
     # Reverse scaling for each series in the test set
     predictions_rescaled = []
     for i, series_id in enumerate(series_ids):
-        scaler = scalers[f'H{series_id}']
+        scaler = scalers[series_id]  # Direct lookup with integer `series_id`
         pred_scaled = scaler.inverse_transform(predictions[i].reshape(-1, 1)).flatten()
         predictions_rescaled.append(pred_scaled)
 
     return np.array(predictions_rescaled)  # Return rescaled predictions
+
+def rnn_train(model, epochs, X_train, y_train, batch_size, optimizer, criterion):
+    for epoch in range(epochs):
+        model.train()
+        permutation = torch.randperm(X_train.size(0))
+        epoch_loss = 0
+        for i in range(0, X_train.size(0), batch_size):
+            indices = permutation[i:i + batch_size]
+            batch_X, batch_y = X_train[indices], y_train[indices]
+
+            optimizer.zero_grad()
+            outputs = model(batch_X.unsqueeze(-1)).squeeze(-1)  # Add feature dimension for RNN
+            loss = criterion(outputs, batch_y)
+            loss.backward()
+            optimizer.step()
+            epoch_loss += loss.item()
+        print(f'Epoch [{epoch + 1}/{epochs}], Loss: {epoch_loss:.4f}')
