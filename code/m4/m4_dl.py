@@ -7,11 +7,14 @@ from datasetsforecast.m4 import M4, M4Info, M4Evaluation
 from utils.ml_models import calculate_smape
 from utils.m4_preprocess_dl import (
     create_rnn_windows,
+    create_transformer_windows,
     create_test_windows,
+    create_test_windows_transformer,
     recursive_predict_rnn,
-    rnn_train
+    recursive_predict_transformer,
+    nn_train
 )
-from utils.dl_models import ComplexLSTM, SimpleRNN
+from utils.dl_models import ComplexLSTM, SimpleRNN, TimeSeriesTransformer
 
 # Choose the frequency
 freq = 'Hourly'  # or 'Daily'
@@ -38,10 +41,10 @@ if max_length is not None:
     train = truncate_series(train, max_length)
 
 # Generate training data windows
-X_train_rnn, y_train_rnn, scalers = create_rnn_windows(train, look_back, horizon)
+X_train_rnn, y_train_rnn, scalers_rnn = create_rnn_windows(train, look_back, horizon)
 
 # Generate test data windows
-X_test_rnn, series_ids = create_test_windows(train, look_back, scalers)
+X_test_rnn, series_ids_rnn = create_test_windows(train, look_back, scalers_rnn)
 
 # Set up device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -58,20 +61,18 @@ batch_size = 32
 
 
 # Function to train and evaluate a model
-def train_and_evaluate(model_class, model_name):
-    model = model_class(
-        hidden_size=lstm_hidden_size,
-        num_layers=3,
-        dropout=0.3,
-        output_size=1
-    ).to(device)
+def train_and_evaluate(model_class, model_name, X_train, y_train, X_test, scalers, series_ids, epochs, batch_size, model_type='RNN'):
+    model = model_class().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
     # Train the model
-    rnn_train(model, epochs, X_train_rnn, y_train_rnn, batch_size, optimizer, criterion)
+    nn_train(model, epochs, X_train, y_train, batch_size, optimizer, criterion, model_type=model_type)
 
     # Make predictions
-    y_pred = recursive_predict_rnn(model, X_test_rnn, horizon, device, scalers, series_ids)
+    if model_name == 'Transformer':
+        y_pred = recursive_predict_transformer(model, X_test, horizon, device, scalers, series_ids)
+    else:
+        y_pred = recursive_predict_rnn(model, X_test, horizon, device, scalers, series_ids)
 
     # Reshape predictions to match the expected shape
     y_pred = y_pred.reshape(test.unique_id.nunique(), horizon)
@@ -86,8 +87,72 @@ def train_and_evaluate(model_class, model_name):
 
 # Train and evaluate LSTM model
 print("Training and Evaluating LSTM Model...")
-y_pred_lstm = train_and_evaluate(ComplexLSTM, 'LSTM')
+y_pred_lstm = train_and_evaluate(
+    lambda: ComplexLSTM(
+        input_size=1,
+        hidden_size=lstm_hidden_size,
+        num_layers=3,
+        dropout=0.3,
+        output_size=1
+    ),
+    'LSTM',
+    X_train_rnn,
+    y_train_rnn,
+    X_test_rnn,
+    scalers_rnn,
+    series_ids_rnn,
+    epochs,
+    batch_size
+)
+
 
 # Train and evaluate RNN model
 print("\nTraining and Evaluating RNN Model...")
-y_pred_rnn = train_and_evaluate(SimpleRNN, 'RNN')
+y_pred_rnn = train_and_evaluate(
+    lambda: SimpleRNN(
+        input_size=1,
+        hidden_size=lstm_hidden_size,
+        num_layers=3,
+        dropout=0.3,
+        output_size=1
+    ),
+    'RNN',
+    X_train_rnn,
+    y_train_rnn,
+    X_test_rnn,
+    scalers_rnn,
+    series_ids_rnn,
+    epochs,
+    batch_size
+)
+
+
+# Prepare data for the Transformer model
+X_train_trans, y_train_trans, scalers_trans = create_transformer_windows(train, look_back, horizon)
+X_test_trans, series_ids_trans = create_test_windows_transformer(train, look_back, scalers_trans)
+
+# Move data to device
+X_train_trans, y_train_trans = X_train_trans.to(device), y_train_trans.to(device)
+
+# Train and evaluate Transformer model
+print("\nTraining and Evaluating Transformer Model...")
+y_pred_trans = train_and_evaluate(
+    lambda: TimeSeriesTransformer(
+        input_size=1,
+        d_model=64,
+        nhead=8,
+        num_layers=3,
+        dim_feedforward=128,
+        dropout=0.1,
+        output_size=horizon  # Transformer outputs the full horizon
+    ),
+    'Transformer',
+    X_train_trans,
+    y_train_trans,
+    X_test_trans,
+    scalers_trans,
+    series_ids_trans,
+    epochs,
+    batch_size,
+    model_type='Transformer'  # Specify model type
+)
