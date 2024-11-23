@@ -49,9 +49,9 @@ class TimeSeriesTransformer(nn.Module):
         src = self.input_projection(src)  # Shape: [batch_size, seq_len, d_model]
         src = self.positional_encoding(src)
         output = self.transformer_encoder(src)  # Shape: [batch_size, seq_len, d_model]
-        output = self.decoder(output)  # Shape: [batch_size, seq_len, output_size]
         output = output[:, -1, :]  # Use the last time step
-        return output  # Shape: [batch_size, output_size]
+        output = self.decoder(output)  # Shape: [batch_size, output_size]
+        return output.squeeze(-1)  # Shape: [batch_size]
 
 
 class PositionalEncoding(nn.Module):
@@ -73,3 +73,15 @@ class PositionalEncoding(nn.Module):
     def forward(self, x):
         x = x + self.pe[:, :x.size(1)].to(x.device)
         return self.dropout(x)
+
+class xLSTMTimeSeriesModel(nn.Module):
+    def __init__(self, xlstm_stack, output_size, cfg):
+        super(xLSTMTimeSeriesModel, self).__init__()
+        self.xlstm_stack = xlstm_stack
+        self.output_layer = nn.Linear(cfg.embedding_dim, output_size)
+
+    def forward(self, x):
+        x = self.xlstm_stack(x)
+        x = x[:, -1, :]  # Use the last time step's output
+        x = self.output_layer(x)
+        return x
