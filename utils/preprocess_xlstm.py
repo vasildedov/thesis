@@ -31,11 +31,13 @@ def recursive_predict_xlstm(model, X_input, horizon, device, scalers, series_ids
 
     with torch.no_grad():
         for _ in range(horizon):
-            y_pred = model(X_current).unsqueeze(-1)  # Predict one step ahead
+            y_pred = model(X_current)  # Shape: [num_series]
+            y_pred = y_pred.unsqueeze(-1).unsqueeze(-1)  # Shape: [num_series, 1, 1]
             predictions.append(y_pred.cpu().numpy())
-            X_current = torch.cat((X_current[:, 1:], y_pred), dim=1)  # Update sequence
+            X_current = torch.cat((X_current[:, 1:, :], y_pred), dim=1)  # Update sequence
 
-    predictions = np.hstack(predictions)  # Shape: [num_series, horizon]
+    predictions = np.concatenate(predictions, axis=1)  # Shape: [num_series, horizon, 1]
+    predictions = predictions.squeeze(-1)  # Shape: [num_series, horizon]
 
     # Reverse scaling for each series
     predictions_rescaled = []

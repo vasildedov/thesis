@@ -9,7 +9,7 @@ from utils.m4_preprocess_dl import (
     create_rnn_windows,
     create_test_windows
 )
-from utils.dl_models import ComplexLSTM, SimpleRNN, TimeSeriesTransformer, xLSTMTimeSeriesModel
+from utils.dl_models import xLSTMTimeSeriesModel
 from xlstm import (
     xLSTMBlockStack,
     xLSTMBlockStackConfig,
@@ -102,7 +102,7 @@ model = xLSTMTimeSeriesModel(xlstm_stack, output_size, cfg).to(device)
 
 # Training parameters
 epochs = 10
-batch_size = 32
+batch_size = 64
 
 # Train and evaluate xLSTM model
 print("\nTraining and Evaluating xLSTM Model...")
@@ -114,7 +114,7 @@ y_pred_xlstm = train_and_evaluate_xlstm(
     X_test_xlstm,
     scalers_xlstm,
     series_ids_xlstm,
-    epochs,
+    1,
     batch_size,
     horizon,
     test,

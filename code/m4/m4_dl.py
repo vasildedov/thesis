@@ -10,7 +10,7 @@ from utils.m4_preprocess_dl import (
     create_test_windows_transformer,
     train_and_evaluate
 )
-from utils.dl_models import ComplexLSTM, SimpleRNN, TimeSeriesTransformer, xLSTMTimeSeriesModel
+from utils.dl_models import ComplexLSTM, SimpleRNN, TimeSeriesTransformer
 
 # Choose the frequency
 freq = 'Hourly'  # or 'Daily'
