@@ -21,6 +21,8 @@ from xlstm import (
 )
 from utils.preprocess_xlstm import train_and_evaluate_xlstm
 
+torch.autograd.set_detect_anomaly(True)
+
 # Choose the frequency
 freq = 'Hourly'  # or 'Daily'
 
@@ -44,18 +46,54 @@ else:
 X_train_xlstm, y_train_xlstm, scalers_xlstm = create_rnn_windows(train, look_back, horizon)
 X_test_xlstm, series_ids_xlstm = create_test_windows(train, look_back, scalers_xlstm)
 
+# After loading data
+print("Before any unsqueeze:")
+print("X_train_xlstm shape:", X_train_xlstm.shape)
+print("X_test_xlstm shape:", X_test_xlstm.shape)
+
 # Convert to tensors and move to device
 X_train_xlstm = torch.tensor(X_train_xlstm, dtype=torch.float32)
 y_train_xlstm = torch.tensor(y_train_xlstm, dtype=torch.float32)
 X_test_xlstm = torch.tensor(X_test_xlstm, dtype=torch.float32)
 
-# Add feature dimension if necessary
+# After converting to tensors
+print("Shapes after converting to torch tensors:")
+print("X_train_xlstm shape:", X_train_xlstm.shape)
+print("X_test_xlstm shape:", X_test_xlstm.shape)
+
+# Check and adjust dimensions
+def ensure_three_dims(tensor):
+    while tensor.dim() > 3:
+        tensor = tensor.squeeze(-1)
+    return tensor
+
+X_train_xlstm = ensure_three_dims(X_train_xlstm)
+X_test_xlstm = ensure_three_dims(X_test_xlstm)
+
+print("Shapes after ensuring 3 dimensions:")
+print("X_train_xlstm shape:", X_train_xlstm.shape)
+print("X_test_xlstm shape:", X_test_xlstm.shape)
+
+
+# X_train_xlstm = X_train_xlstm[:10]
+# y_train_xlstm = y_train_xlstm[:10]
+# X_test_xlstm = X_test_xlstm[:10]
+# series_ids_xlstm = series_ids_xlstm[:10]
+#
+# test = test[test.unique_id.isin(test.unique_id.unique()[:10])]
+
+# Ensure no extra dimensions are added
 if len(X_train_xlstm.shape) == 2:
-    X_train_xlstm = X_train_xlstm.unsqueeze(-1)  # Shape: [batch_size, seq_len, 1]
-    X_test_xlstm = X_test_xlstm.unsqueeze(-1)
+    X_train_xlstm = X_train_xlstm.unsqueeze(-1)
+    # X_test_xlstm = X_test_xlstm.unsqueeze(-1)
+
+# Double-check shapes
+print("X_train_xlstm shape:", X_train_xlstm.shape)
+print("X_test_xlstm shape:", X_test_xlstm.shape)
+
 
 # Set up device
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cpu" if torch.cuda.is_available() else "cpu")
 
 # Move data to device
 X_train_xlstm = X_train_xlstm.to(device)
@@ -76,7 +114,7 @@ cfg = xLSTMBlockStackConfig(
     ),
     slstm_block=sLSTMBlockConfig(
         slstm=sLSTMLayerConfig(
-            backend="vanilla",
+            backend="vanilla" if torch.cuda.is_available() else "vanilla",
             num_heads=1,  # Set to 1
             conv1d_kernel_size=4,
             bias_init="powerlaw_blockdependent",
@@ -91,6 +129,12 @@ cfg = xLSTMBlockStackConfig(
     embedding_dim=embedding_dim,
     slstm_at=[1],
 )
+
+print("Checking for NaNs and Infs in data:")
+print("X_train_xlstm contains NaN:", torch.isnan(X_train_xlstm).any())
+print("X_train_xlstm contains Inf:", torch.isinf(X_train_xlstm).any())
+print("y_train_xlstm contains NaN:", torch.isnan(y_train_xlstm).any())
+print("y_train_xlstm contains Inf:", torch.isinf(y_train_xlstm).any())
 
 
 # Create xLSTM stack
@@ -120,3 +164,7 @@ y_pred_xlstm = train_and_evaluate_xlstm(
     test,
     freq
 )
+
+y_true = test['y'].values.reshape(414, horizon)
+
+calculate_smape(y_true, y_pred_xlstm)

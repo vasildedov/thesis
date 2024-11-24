@@ -40,7 +40,7 @@ if max_length is not None:
 X_train_rnn, y_train_rnn, scalers_rnn = create_rnn_windows(train, look_back, horizon)
 
 # Generate test data windows
-X_test_rnn, series_ids_rnn = create_test_windows(train, look_back, scalers_rnn)
+X_test_rnn = create_test_windows(train, look_back, scalers_rnn)
 
 # Set up device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -71,7 +71,6 @@ y_pred_lstm = train_and_evaluate(
     y_train_rnn,
     X_test_rnn,
     scalers_rnn,
-    series_ids_rnn,
     epochs,
     batch_size,
     criterion,
@@ -97,7 +96,6 @@ y_pred_rnn = train_and_evaluate(
     y_train_rnn,
     X_test_rnn,
     scalers_rnn,
-    series_ids_rnn,
     epochs,
     batch_size,
     criterion,
@@ -109,7 +107,7 @@ y_pred_rnn = train_and_evaluate(
 
 # Prepare data for the Transformer model
 X_train_trans, y_train_trans, scalers_trans = create_transformer_windows(train, look_back)
-X_test_trans, series_ids_trans = create_test_windows_transformer(train, look_back, scalers_trans)
+X_test_trans = create_test_windows_transformer(train, look_back, scalers_trans)
 
 # Move data to device
 X_train_trans, y_train_trans = X_train_trans.to(device), y_train_trans.to(device)
@@ -132,7 +130,6 @@ y_pred_trans = train_and_evaluate(
     y_train_trans,
     X_test_trans,
     scalers_trans,
-    series_ids_trans,
     epochs,
     batch_size,
     criterion,

@@ -5,88 +5,80 @@ from datasetsforecast.m4 import M4, M4Info, M4Evaluation
 
 # Data Preprocessing: Create input/output windows with scaling and integer series identifier
 def create_rnn_windows(df, look_back, horizon):
-    X, y, series_ids = [], [], []
+    X, y = [], []
     scalers = {}
 
-    for series_id, group in df.groupby("unique_id"):
+    for _, group in df.groupby("unique_id"):
         series = group["y"].values.reshape(-1, 1)
         scaler = StandardScaler()
         scaled_series = scaler.fit_transform(series).flatten()  # Scale each series individually
-        # Store scaler with integer key (e.g., 'D1' -> 1, 'H2' -> 2)
-        series_id_int = int(series_id[1:])  # Extract integer part of the ID
-        scalers[series_id_int] = scaler
+        scalers[group["unique_id"].iloc[0]] = scaler  # Store scaler using the unique ID
 
         for i in range(len(scaled_series) - look_back - horizon + 1):
-            X.append(np.concatenate(([series_id_int], scaled_series[i: i + look_back])))
-            y.append(scaled_series[i + look_back])  # Only take the next step as target
-            series_ids.append(series_id_int)
+            X.append(scaled_series[i: i + look_back])
+            y.append(scaled_series[i + look_back])  # Target is the next step after look_back
 
-    X = torch.tensor(np.array(X), dtype=torch.float32)
-    y = torch.tensor(np.array(y), dtype=torch.float32)
-    return X, y, scalers  # Return scalers with integer keys
+    X = torch.tensor(np.array(X), dtype=torch.float32)  # Shape: [samples, look_back]
+    y = torch.tensor(np.array(y), dtype=torch.float32)  # Shape: [samples]
+    return X, y, scalers
 
 
 def create_transformer_windows(df, look_back):
     X, y = [], []
     scalers = {}
 
-    for series_id, group in df.groupby("unique_id"):
+    for _, group in df.groupby("unique_id"):
         series = group["y"].values.reshape(-1, 1)
         scaler = StandardScaler()
-        scaled_series = scaler.fit_transform(series).flatten()
-        scalers[series_id] = scaler
+        scaled_series = scaler.fit_transform(series).flatten()  # Scale the series
+        scalers[group["unique_id"].iloc[0]] = scaler  # Store scaler keyed by `unique_id`
 
         for i in range(len(scaled_series) - look_back):
-            seq_x = scaled_series[i: i + look_back]
-            seq_y = scaled_series[i + look_back]
+            seq_x = scaled_series[i: i + look_back]  # Input window
+            seq_y = scaled_series[i + look_back]    # Target value
             X.append(seq_x)
             y.append(seq_y)
 
     X = torch.tensor(np.array(X), dtype=torch.float32)  # Shape: [samples, look_back]
     y = torch.tensor(np.array(y), dtype=torch.float32)  # Shape: [samples]
-    X = X.unsqueeze(-1)  # Shape: [samples, look_back, 1]
+    X = X.unsqueeze(-1)  # Add feature dimension -> Shape: [samples, look_back, 1]
     return X, y, scalers
 
 
 # Prepare test data: Use the last `look_back` steps from each series in train and include series ID
 def create_test_windows(df, look_back, scalers):
-    X_test, series_ids = [], []
+    X_test = []
 
-    for series_id, group in df.groupby("unique_id"):
+    for _, group in df.groupby("unique_id"):
         series = group["y"].values.reshape(-1, 1)
-        # Convert `series_id` to integer for scaler lookup
-        series_id_int = int(series_id[1:])
-        scaler = scalers[series_id_int]  # Retrieve scaler using the integer part of the ID
+        scaler = scalers[group["unique_id"].iloc[0]]  # Retrieve scaler for the series
         scaled_series = scaler.transform(series).flatten()  # Scale using the training scaler
 
-        # Concatenate the series identifier as the first element in the test window
-        window_with_id = np.concatenate(([series_id_int], scaled_series[-look_back:]))
-        X_test.append(window_with_id)
-        series_ids.append(series_id_int)  # Store the integer identifier only
-
-    X_test = torch.tensor(np.array(X_test), dtype=torch.float32)
-    return X_test.unsqueeze(-1), np.array(series_ids)  # Adding feature dimension for RNN
-
-
-def create_test_windows_transformer(df, look_back, scalers):
-    X_test, series_ids = [], []
-
-    for series_id, group in df.groupby("unique_id"):
-        series = group["y"].values.reshape(-1, 1)
-        scaler = scalers[series_id]
-        scaled_series = scaler.transform(series).flatten()
-
-        seq_x = scaled_series[-look_back:]
-        X_test.append(seq_x)
-        series_ids.append(series_id)
+        X_test.append(scaled_series[-look_back:])  # Use the last `look_back` steps
 
     X_test = torch.tensor(np.array(X_test), dtype=torch.float32)  # Shape: [num_series, look_back]
     X_test = X_test.unsqueeze(-1)  # Shape: [num_series, look_back, 1]
-    return X_test, np.array(series_ids)
+    return X_test
+
+
+def create_test_windows_transformer(df, look_back, scalers):
+    X_test = []
+
+    for _, group in df.groupby("unique_id"):
+        series = group["y"].values.reshape(-1, 1)
+        scaler = scalers[group["unique_id"].iloc[0]]  # Retrieve scaler for the series
+        scaled_series = scaler.transform(series).flatten()  # Scale the series
+
+        seq_x = scaled_series[-look_back:]  # Use the last `look_back` steps
+        X_test.append(seq_x)
+
+    X_test = torch.tensor(np.array(X_test), dtype=torch.float32)  # Shape: [num_series, look_back]
+    X_test = X_test.unsqueeze(-1)  # Add feature dimension -> Shape: [num_series, look_back, 1]
+    return X_test
 
 
 # Recursive prediction function for multi-step horizon with reverse scaling
-def recursive_predict_rnn(model, X_input, horizon, device, scalers, series_ids):
+def recursive_predict_rnn(model, X_input, horizon, device, scalers):
     model.eval()
     predictions = []
     X_current = X_input.to(device)
@@ -99,17 +91,16 @@ def recursive_predict_rnn(model, X_input, horizon, device, scalers, series_ids):
 
     predictions = np.hstack(predictions)  # Flatten predictions into a single array
 
-    # Reverse scaling for each series in the test set
+    # Reverse scaling for each series
     predictions_rescaled = []
-    for i, series_id in enumerate(series_ids):
-        scaler = scalers[series_id]  # Direct lookup with integer `series_id`
+    for i, scaler in enumerate(scalers.values()):
         pred_scaled = scaler.inverse_transform(predictions[i].reshape(-1, 1)).flatten()
         predictions_rescaled.append(pred_scaled)
 
     return np.array(predictions_rescaled)  # Return rescaled predictions
 
 
-def recursive_predict_transformer(model, X_input, horizon, device, scalers, series_ids):
+def recursive_predict_transformer(model, X_input, horizon, device, scalers):
     model.eval()
     predictions = []
     X_current = X_input.clone().to(device)
@@ -127,12 +118,12 @@ def recursive_predict_transformer(model, X_input, horizon, device, scalers, seri
 
     # Reverse scaling for each series
     predictions_rescaled = []
-    for i, series_id in enumerate(series_ids):
-        scaler = scalers[series_id]
+    for i, scaler in enumerate(scalers.values()):
         pred_scaled = scaler.inverse_transform(predictions[i].reshape(-1, 1)).flatten()
         predictions_rescaled.append(pred_scaled)
 
     return np.array(predictions_rescaled)
+
 
 
 def nn_train(model, epochs, X_train, y_train, batch_size, optimizer, criterion, model_type='RNN'):
@@ -160,7 +151,7 @@ def nn_train(model, epochs, X_train, y_train, batch_size, optimizer, criterion, 
         print(f'Epoch [{epoch + 1}/{epochs}], Loss: {epoch_loss:.4f}')
 
 
-def train_and_evaluate(device, model_class, model_name, X_train, y_train, X_test, scalers, series_ids, epochs,
+def train_and_evaluate(device, model_class, model_name, X_train, y_train, X_test, scalers, epochs,
                        batch_size, criterion, horizon, test, freq, model_type='RNN'):
     model = model_class().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -170,14 +161,15 @@ def train_and_evaluate(device, model_class, model_name, X_train, y_train, X_test
 
     # Make predictions using recursive forecasting
     if model_type == 'Transformer':
-        y_pred = recursive_predict_transformer(model, X_test, horizon, device, scalers, series_ids)
+        y_pred = recursive_predict_transformer(model, X_test, horizon, device, scalers)
     else:
-        y_pred = recursive_predict_rnn(model, X_test, horizon, device, scalers, series_ids)
+        y_pred = recursive_predict_rnn(model, X_test, horizon, device, scalers)
 
     # Reshape predictions to match the expected shape
-    y_pred = y_pred.reshape(test.unique_id.nunique(), horizon)
+    num_series = test['unique_id'].nunique()
+    y_pred = y_pred.reshape(num_series, horizon)
 
     # Evaluate using sMAPE
-    y_true = test['y'].values.reshape(test.unique_id.nunique(), horizon)
+    y_true = test['y'].values.reshape(num_series, horizon)
     print(f"{model_name} Model Evaluation:\n", M4Evaluation.evaluate('data', freq, y_pred))
     return y_pred
