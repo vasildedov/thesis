@@ -6,7 +6,7 @@ from utils.m4_preprocess_ml import train_test_split, truncate_series
 from datasetsforecast.m4 import M4, M4Info, M4Evaluation
 from utils.ml_models import calculate_smape
 from utils.m4_preprocess_dl import (
-    create_rnn_windows,
+    create_train_windows,
     create_test_windows
 )
 from utils.dl_models import xLSTMTimeSeriesModel
@@ -21,12 +21,15 @@ from xlstm import (
 )
 from utils.preprocess_xlstm import train_and_evaluate_xlstm
 
-torch.autograd.set_detect_anomaly(True)
-
 # Choose the frequency
 freq = 'Hourly'  # or 'Daily'
 
 train, test = train_test_split(freq)
+
+num_series = 1
+filtered_series = train["unique_id"].unique()[:num_series]
+train = train[train["unique_id"].isin(filtered_series)]
+test = test[test["unique_id"].isin(filtered_series)]
 
 # Set parameters based on frequency
 if freq == 'Daily':
@@ -42,55 +45,15 @@ elif freq == 'Hourly':
 else:
     raise ValueError("Unsupported frequency. Choose 'Daily' or 'Hourly'.")
 
-# Prepare data for xLSTM
-X_train_xlstm, y_train_xlstm, scalers_xlstm = create_rnn_windows(train, look_back, horizon)
-X_test_xlstm, series_ids_xlstm = create_test_windows(train, look_back, scalers_xlstm)
 
-# After loading data
-print("Before any unsqueeze:")
-print("X_train_xlstm shape:", X_train_xlstm.shape)
-print("X_test_xlstm shape:", X_test_xlstm.shape)
+# Create train and test windows
+X_train_xlstm, y_train_xlstm, scalers_xlstm = create_train_windows(train, look_back, horizon)
+X_test_xlstm = create_test_windows(train, look_back, scalers_xlstm)
 
-# Convert to tensors and move to device
-X_train_xlstm = torch.tensor(X_train_xlstm, dtype=torch.float32)
+# Prepare data tensors
+X_train_xlstm = torch.tensor(X_train_xlstm, dtype=torch.float32).unsqueeze(-1)  # Add feature dimension
 y_train_xlstm = torch.tensor(y_train_xlstm, dtype=torch.float32)
-X_test_xlstm = torch.tensor(X_test_xlstm, dtype=torch.float32)
-
-# After converting to tensors
-print("Shapes after converting to torch tensors:")
-print("X_train_xlstm shape:", X_train_xlstm.shape)
-print("X_test_xlstm shape:", X_test_xlstm.shape)
-
-# Check and adjust dimensions
-def ensure_three_dims(tensor):
-    while tensor.dim() > 3:
-        tensor = tensor.squeeze(-1)
-    return tensor
-
-X_train_xlstm = ensure_three_dims(X_train_xlstm)
-X_test_xlstm = ensure_three_dims(X_test_xlstm)
-
-print("Shapes after ensuring 3 dimensions:")
-print("X_train_xlstm shape:", X_train_xlstm.shape)
-print("X_test_xlstm shape:", X_test_xlstm.shape)
-
-
-# X_train_xlstm = X_train_xlstm[:10]
-# y_train_xlstm = y_train_xlstm[:10]
-# X_test_xlstm = X_test_xlstm[:10]
-# series_ids_xlstm = series_ids_xlstm[:10]
-#
-# test = test[test.unique_id.isin(test.unique_id.unique()[:10])]
-
-# Ensure no extra dimensions are added
-if len(X_train_xlstm.shape) == 2:
-    X_train_xlstm = X_train_xlstm.unsqueeze(-1)
-    # X_test_xlstm = X_test_xlstm.unsqueeze(-1)
-
-# Double-check shapes
-print("X_train_xlstm shape:", X_train_xlstm.shape)
-print("X_test_xlstm shape:", X_test_xlstm.shape)
-
+X_test_xlstm = torch.tensor(X_test_xlstm, dtype=torch.float32).unsqueeze(-1)  # Add feature dimension
 
 # Set up device
 device = torch.device("cpu" if torch.cuda.is_available() else "cpu")
@@ -117,7 +80,7 @@ cfg = xLSTMBlockStackConfig(
             backend="vanilla" if torch.cuda.is_available() else "vanilla",
             num_heads=1,  # Set to 1
             conv1d_kernel_size=4,
-            bias_init="powerlaw_blockdependent",
+            bias_init="constant",  #powerlaw_blockdependent
         ),
         feedforward=FeedForwardConfig(
             proj_factor=1.3,
@@ -127,7 +90,7 @@ cfg = xLSTMBlockStackConfig(
     context_length=look_back+1,
     num_blocks=7,
     embedding_dim=embedding_dim,
-    slstm_at=[1],
+    slstm_at=[1, 2],
 )
 
 print("Checking for NaNs and Infs in data:")
@@ -144,9 +107,41 @@ xlstm_stack = xLSTMBlockStack(cfg).to(device)
 output_size = 1
 model = xLSTMTimeSeriesModel(xlstm_stack, output_size, cfg).to(device)
 
+# Pass data through individual blocks
+x = X_train_xlstm[:10].clone().detach()
+for i, block in enumerate(xlstm_stack.blocks):
+    x = block(x)
+    print(f"After block {i}, NaN in output: {torch.isnan(x).any()}, shape: {x.shape}")
+    if torch.isnan(x).any():
+        break  # Stop if NaNs are detected
+
+from torch.nn import LayerNorm
+
+x = X_train_xlstm[:10].clone().detach()
+layer_norm = LayerNorm(normalized_shape=x.shape[-1]).to(device)
+x = layer_norm(x)
+print(f"After LayerNorm, NaN in output: {torch.isnan(x).any()}")
+
+
+class DummyModel(nn.Module):
+    def __init__(self, input_size, output_size):
+        super(DummyModel, self).__init__()
+        self.fc = nn.Linear(input_size, output_size)
+
+    def forward(self, x):
+        return self.fc(x[:, -1, :])  # Use the last time step
+
+# model = DummyModel(input_size=1, output_size=1).to(device)
+
 # Training parameters
 epochs = 10
-batch_size = 64
+batch_size = 32
+criterion = nn.MSELoss()
+
+X_dummy = torch.rand(100, 120, 1)  # Random input
+y_dummy = torch.rand(100)  # Random target
+
+
 
 # Train and evaluate xLSTM model
 print("\nTraining and Evaluating xLSTM Model...")
@@ -157,14 +152,14 @@ y_pred_xlstm = train_and_evaluate_xlstm(
     y_train_xlstm,
     X_test_xlstm,
     scalers_xlstm,
-    series_ids_xlstm,
-    1,
+    10,
     batch_size,
     horizon,
     test,
-    freq
+    freq,
+    criterion
 )
 
-y_true = test['y'].values.reshape(414, horizon)
+y_true = test['y'].values.reshape(1, horizon)
 
 calculate_smape(y_true, y_pred_xlstm)

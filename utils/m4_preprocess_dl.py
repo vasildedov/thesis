@@ -1,7 +1,6 @@
 import torch
 import numpy as np
 from sklearn.preprocessing import StandardScaler
-from datasetsforecast.m4 import M4, M4Info, M4Evaluation
 
 
 # Data Preprocessing: Create input/output windows with scaling and integer series identifier
@@ -144,8 +143,8 @@ def train_model(model, X_train, y_train, batch_size, optimizer, criterion, epoch
         print(f'Epoch [{epoch + 1}/{epochs}], Loss: {epoch_loss:.4f}')
 
 
-def train_and_evaluate(device, model_class, model_name, X_train, y_train, X_test, scalers, epochs,
-                       batch_size, criterion, horizon, test, freq):
+def train_and_predict(device, model_class, X_train, y_train, X_test, scalers, epochs,
+                       batch_size, criterion, horizon, test):
     """
     Train a model and evaluate its performance.
 
@@ -162,7 +161,6 @@ def train_and_evaluate(device, model_class, model_name, X_train, y_train, X_test
         criterion (torch.nn.Module): Loss function.
         horizon (int): Forecasting horizon.
         test (pd.DataFrame): Test DataFrame.
-        freq (str): Frequency of the data.
 
     Returns:
         np.ndarray: Predicted values.
@@ -179,8 +177,4 @@ def train_and_evaluate(device, model_class, model_name, X_train, y_train, X_test
     # Reshape predictions to match the expected shape
     num_series = test['unique_id'].nunique()
     y_pred = y_pred.reshape(num_series, horizon)
-
-    # Evaluate using sMAPE
-    y_true = test['y'].values.reshape(num_series, horizon)
-    print(f"{model_name} Model Evaluation:\n", M4Evaluation.evaluate('data', freq, y_pred))
     return y_pred

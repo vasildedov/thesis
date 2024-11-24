@@ -6,9 +6,10 @@ from utils.m4_preprocess_ml import train_test_split, truncate_series
 from utils.m4_preprocess_dl import (
     create_train_windows,
     create_test_windows,
-    train_and_evaluate
+    train_and_predict
 )
 from utils.dl_models import ComplexLSTM, SimpleRNN, TimeSeriesTransformer
+from datasetsforecast.m4 import M4Evaluation
 
 # Choose the frequency
 freq = 'Hourly'  # or 'Daily'
@@ -29,6 +30,11 @@ else:
 
 # Load data
 train, test = train_test_split(freq)
+num_series = 1
+filtered_series = train["unique_id"].unique()[:num_series]
+train = train[train["unique_id"].isin(filtered_series)]
+test = test[test["unique_id"].isin(filtered_series)]
+
 if max_length:
     train = truncate_series(train, max_length)
 
@@ -48,7 +54,7 @@ epochs, batch_size = 10, 32
 
 # Train and evaluate LSTM model
 print("Training and Evaluating LSTM Model...")
-y_pred_lstm = train_and_evaluate(
+y_pred_lstm = train_and_predict(
     device,
     lambda: ComplexLSTM(
         input_size=1,
@@ -57,7 +63,6 @@ y_pred_lstm = train_and_evaluate(
         dropout=0.3,
         output_size=1
     ),
-    'LSTM',
     X_train,
     y_train,
     X_test,
@@ -66,13 +71,13 @@ y_pred_lstm = train_and_evaluate(
     batch_size,
     criterion,
     horizon,
-    test,
-    freq
+    test
 )
+print(f"LSTM Model Evaluation:\n", M4Evaluation.evaluate('data', freq, y_pred_lstm))
 
 # Train and evaluate RNN model
 print("\nTraining and Evaluating RNN Model...")
-y_pred_rnn = train_and_evaluate(
+y_pred_rnn = train_and_predict(
     device,
     lambda: SimpleRNN(
         input_size=1,
@@ -81,7 +86,6 @@ y_pred_rnn = train_and_evaluate(
         dropout=0.3,
         output_size=1
     ),
-    'RNN',
     X_train,
     y_train,
     X_test,
@@ -90,13 +94,13 @@ y_pred_rnn = train_and_evaluate(
     batch_size,
     criterion,
     horizon,
-    test,
-    freq
+    test
 )
+print(f"RNN Model Evaluation:\n", M4Evaluation.evaluate('data', freq, y_pred_rnn))
 
 # Train and evaluate Transformer model
 print("\nTraining and Evaluating Transformer Model...")
-y_pred_trans = train_and_evaluate(
+y_pred_trans = train_and_predict(
     device,
     lambda: TimeSeriesTransformer(
         input_size=1,
@@ -107,7 +111,6 @@ y_pred_trans = train_and_evaluate(
         dropout=0.1,
         output_size=1
     ),
-    'Transformer',
     X_train,
     y_train,
     X_test,
@@ -116,6 +119,6 @@ y_pred_trans = train_and_evaluate(
     batch_size,
     criterion,
     horizon,
-    test,
-    freq
+    test
 )
+print(f"Transformer Model Evaluation:\n", M4Evaluation.evaluate('data', freq, y_pred_trans))

@@ -79,9 +79,18 @@ class xLSTMTimeSeriesModel(nn.Module):
         super(xLSTMTimeSeriesModel, self).__init__()
         self.xlstm_stack = xlstm_stack
         self.output_layer = nn.Linear(cfg.embedding_dim, output_size)
+        self.input_layer_norm = nn.LayerNorm(cfg.embedding_dim)
 
     def forward(self, x):
+        x = self.input_layer_norm(x)
         x = self.xlstm_stack(x)
-        x = x[:, -1, :]  # Use the last time step's output
+        x = x[:, -1, :]
         x = self.output_layer(x)
         return x
+
+    def reset_parameters(self):
+        nn.init.kaiming_uniform_(self.output_layer.weight, a=math.sqrt(5))
+        if self.output_layer.bias is not None:
+            fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.output_layer.weight)
+            bound = 1 / math.sqrt(fan_in)
+            nn.init.uniform_(self.output_layer.bias, -bound, bound)
