@@ -4,10 +4,8 @@ import numpy as np
 import pandas as pd
 from utils.m4_preprocess_ml import train_test_split, truncate_series
 from utils.m4_preprocess_dl import (
-    create_rnn_windows,
-    create_transformer_windows,
+    create_train_windows,
     create_test_windows,
-    create_test_windows_transformer,
     train_and_evaluate
 )
 from utils.dl_models import ComplexLSTM, SimpleRNN, TimeSeriesTransformer
@@ -31,29 +29,22 @@ else:
 
 # Load data
 train, test = train_test_split(freq)
-
-# Truncate series if necessary
-if max_length is not None:
+if max_length:
     train = truncate_series(train, max_length)
 
-# Generate training data windows
-X_train_rnn, y_train_rnn, scalers_rnn = create_rnn_windows(train, look_back, horizon)
+# Create unified training and test datasets
+X_train, y_train, scalers = create_train_windows(train, look_back, horizon)
+X_test = create_test_windows(train, look_back, scalers)
 
-# Generate test data windows
-X_test_rnn = create_test_windows(train, look_back, scalers_rnn)
-
-# Set up device
+# Add feature dimension and send data to device (unified for all models)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+X_train = X_train.unsqueeze(-1).to(device)  # Shape: [samples, look_back, 1]
+X_test = X_test.unsqueeze(-1).to(device)    # Shape: [num_series, look_back, 1]
+y_train = y_train.to(device)
 
-# Move data to device
-X_train_rnn, y_train_rnn = X_train_rnn.to(device), y_train_rnn.to(device)
-
-# Define loss function and optimizer
+# Define common parameters
 criterion = nn.MSELoss()
-
-# Training loop parameters
-epochs = 10
-batch_size = 32
+epochs, batch_size = 10, 32
 
 # Train and evaluate LSTM model
 print("Training and Evaluating LSTM Model...")
@@ -67,18 +58,17 @@ y_pred_lstm = train_and_evaluate(
         output_size=1
     ),
     'LSTM',
-    X_train_rnn,
-    y_train_rnn,
-    X_test_rnn,
-    scalers_rnn,
-    epochs,
+    X_train,
+    y_train,
+    X_test,
+    scalers,
+    1,
     batch_size,
     criterion,
     horizon,
     test,
-    freq,
+    freq
 )
-
 
 # Train and evaluate RNN model
 print("\nTraining and Evaluating RNN Model...")
@@ -92,11 +82,11 @@ y_pred_rnn = train_and_evaluate(
         output_size=1
     ),
     'RNN',
-    X_train_rnn,
-    y_train_rnn,
-    X_test_rnn,
-    scalers_rnn,
-    epochs,
+    X_train,
+    y_train,
+    X_test,
+    scalers,
+    1,
     batch_size,
     criterion,
     horizon,
@@ -104,15 +94,7 @@ y_pred_rnn = train_and_evaluate(
     freq
 )
 
-
-# Prepare data for the Transformer model
-X_train_trans, y_train_trans, scalers_trans = create_transformer_windows(train, look_back)
-X_test_trans = create_test_windows_transformer(train, look_back, scalers_trans)
-
-# Move data to device
-X_train_trans, y_train_trans = X_train_trans.to(device), y_train_trans.to(device)
-
-# Adjusted Transformer model initialization
+# Train and evaluate Transformer model
 print("\nTraining and Evaluating Transformer Model...")
 y_pred_trans = train_and_evaluate(
     device,
@@ -123,18 +105,17 @@ y_pred_trans = train_and_evaluate(
         num_layers=3,
         dim_feedforward=128,
         dropout=0.1,
-        output_size=1  # Set to 1
+        output_size=1
     ),
     'Transformer',
-    X_train_trans,
-    y_train_trans,
-    X_test_trans,
-    scalers_trans,
-    epochs,
+    X_train,
+    y_train,
+    X_test,
+    scalers,
+    1,
     batch_size,
     criterion,
     horizon,
     test,
-    freq,
-    model_type='Transformer'
+    freq
 )
