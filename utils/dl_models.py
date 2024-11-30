@@ -74,33 +74,56 @@ class PositionalEncoding(nn.Module):
         x = x + self.pe[:, :x.size(1)].to(x.device)
         return self.dropout(x)
 
+
 class xLSTMTimeSeriesModel(nn.Module):
-    def __init__(self, xlstm_stack, output_size, cfg, pooling="last"):
-        super(xLSTMTimeSeriesModel, self).__init__()
+    def __init__(self, xlstm_stack, output_size, embedding_dim):
+        super().__init__()
+        self.input_projection = nn.Linear(1, embedding_dim)  # Project input to embedding_dim
+        self.input_layer_norm = nn.LayerNorm(embedding_dim)
         self.xlstm_stack = xlstm_stack
-        self.output_layer = nn.Linear(cfg.embedding_dim, output_size)
-        self.pooling = pooling
-
-        # Optional normalization across the time dimension
-        self.input_layer_norm = nn.LayerNorm(cfg.embedding_dim)
-
+        # Enhanced output projection with more linear layers
+        self.output_layer = nn.Sequential(
+            nn.Linear(embedding_dim, embedding_dim * 2),  # Expand to higher dimensions
+            nn.GELU(),  # Smooth activation
+            nn.Dropout(0.2),  # Regularization
+            nn.Linear(embedding_dim * 2, embedding_dim),  # Project back
+            nn.ReLU(),  # Activation
+            nn.Linear(embedding_dim, output_size)  # Final projection
+        )
     def forward(self, x):
-        # Normalize input
+        x = self.input_projection(x)  # Expand input to embedding_dim
         x = self.input_layer_norm(x)
-
-        # Pass through xLSTM stack
         x = self.xlstm_stack(x)
-
-        # Handle pooling method
-        if self.pooling == "last":
-            x = x[:, -1, :]  # Last time step
-        elif self.pooling == "mean":
-            x = torch.mean(x, dim=1)  # Mean pooling
-        elif self.pooling == "max":
-            x, _ = torch.max(x, dim=1)  # Max pooling
-        else:
-            raise ValueError(f"Unsupported pooling method: {self.pooling}")
-
-        # Linear output layer
+        x = x[:, -1, :]  # Select last timestep
         x = self.output_layer(x)
         return x
+
+    #
+    # def register_hooks(self):
+    #     """
+    #     Registers backward hooks to monitor gradients in key components.
+    #     """
+    #     def grad_hook(module_name):
+    #         def hook(module, grad_input, grad_output):
+    #             print(f"Gradient Hook - {module_name}:")
+    #             if grad_input and grad_input[0] is not None:
+    #                 print(f"  grad_input[0]: {grad_input[0].norm().item():.4f}")
+    #             if grad_output and grad_output[0] is not None:
+    #                 print(f"  grad_output[0]: {grad_output[0].norm().item():.4f}")
+    #         return hook
+    #
+    #     # Register hooks on the main components of the model
+    #     self.input_layer_norm.register_backward_hook(grad_hook("input_layer_norm"))
+    #     self.output_layer.register_backward_hook(grad_hook("output_layer"))
+    #
+    #     # Register hooks for each block in the xLSTMStack
+    #     for i, block in enumerate(self.xlstm_stack.blocks):
+    #         block.register_backward_hook(grad_hook(f"xlstm_stack.blocks[{i}]"))
+    #         if hasattr(block, 'xlstm') and block.xlstm is not None:
+    #             block.xlstm.register_backward_hook(grad_hook(f"xlstm_stack.blocks[{i}].xlstm"))
+    #         if hasattr(block, 'ffn') and block.ffn is not None:
+    #             block.ffn.register_backward_hook(grad_hook(f"xlstm_stack.blocks[{i}].ffn"))
+    #
+    #     # Optionally, hooks for post-blocks normalization
+    #     if hasattr(self.xlstm_stack, "post_blocks_norm"):
+    #         self.xlstm_stack.post_blocks_norm.register_backward_hook(grad_hook("post_blocks_norm"))

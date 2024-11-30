@@ -24,9 +24,6 @@ def log_activations(x, name):
 
 # Training function
 def train_xlstm(device, model, epochs, X_train, y_train, batch_size, optimizer, criterion):
-    from torch.optim.lr_scheduler import ReduceLROnPlateau
-    scheduler = ReduceLROnPlateau(optimizer, mode='min', patience=5, factor=0.5)
-
     for epoch in range(epochs):
         model.train()
         permutation = torch.randperm(X_train.size(0))
@@ -43,8 +40,6 @@ def train_xlstm(device, model, epochs, X_train, y_train, batch_size, optimizer, 
             loss = criterion(outputs, batch_y)
             if torch.isnan(loss):
                 print("Loss is NaN. Investigate inputs and outputs.")
-            else:
-                print(f"Loss: {loss.item()}")
 
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)  # Clip gradients
@@ -53,12 +48,11 @@ def train_xlstm(device, model, epochs, X_train, y_train, batch_size, optimizer, 
             epoch_loss += loss.item()
 
             # Log sample outputs and gradients during training
-            print(f"Epoch {epoch + 1}, Batch {i // batch_size}: Sample outputs: {outputs[:5].detach().cpu().numpy()}")
-            log_gradients(model)
+            # print(f"Epoch {epoch + 1}, Batch {i // batch_size}: Sample outputs: {outputs[:5].detach().cpu().numpy()}")
+            # log_gradients(model)
 
-        scheduler.step(loss)
         print(f"Epoch [{epoch + 1}/{epochs}], Loss: {epoch_loss:.4f}")
-        log_weights(model)
+        # log_weights(model)
 
 # Recursive predict with diagnostics
 def recursive_predict_xlstm(model, X_input, horizon, device, scalers, test):
@@ -73,7 +67,7 @@ def recursive_predict_xlstm(model, X_input, horizon, device, scalers, test):
         for step in range(horizon):
             # print(f"Step {step}: X_current sample (before): {X_current[0, :, 0]}")
             y_pred = model(X_current)  # Expected shape: [batch_size, 1]
-            print(f"Step {step}: y_pred sample: {y_pred[0].item()}")
+            # print(f"Step {step}: y_pred sample: {y_pred[0].item()}")
 
             if step > 0 and (y_pred[0].item() == predictions[-1][0]):
                 print(f"Warning: Repeated prediction detected at step {step}: {y_pred[0].item()}")
@@ -111,11 +105,11 @@ def sanity_check_model(model):
 
 # Add diagnostics to training and evaluation
 def train_and_evaluate_xlstm(device, model, X_train, y_train, X_test, scalers, epochs, batch_size, horizon, test, freq, criterion):
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-1)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
 
     # Sanity checks
     sanity_check_data(X_train, y_train, X_test)
-    sanity_check_model(model)
+    # sanity_check_model(model)
 
     # Train the model
     train_xlstm(device, model, epochs, X_train, y_train, batch_size, optimizer, criterion)
