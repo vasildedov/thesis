@@ -75,22 +75,32 @@ class PositionalEncoding(nn.Module):
         return self.dropout(x)
 
 class xLSTMTimeSeriesModel(nn.Module):
-    def __init__(self, xlstm_stack, output_size, cfg):
+    def __init__(self, xlstm_stack, output_size, cfg, pooling="last"):
         super(xLSTMTimeSeriesModel, self).__init__()
         self.xlstm_stack = xlstm_stack
         self.output_layer = nn.Linear(cfg.embedding_dim, output_size)
+        self.pooling = pooling
+
+        # Optional normalization across the time dimension
         self.input_layer_norm = nn.LayerNorm(cfg.embedding_dim)
 
     def forward(self, x):
+        # Normalize input
         x = self.input_layer_norm(x)
+
+        # Pass through xLSTM stack
         x = self.xlstm_stack(x)
-        x = x[:, -1, :]
+
+        # Handle pooling method
+        if self.pooling == "last":
+            x = x[:, -1, :]  # Last time step
+        elif self.pooling == "mean":
+            x = torch.mean(x, dim=1)  # Mean pooling
+        elif self.pooling == "max":
+            x, _ = torch.max(x, dim=1)  # Max pooling
+        else:
+            raise ValueError(f"Unsupported pooling method: {self.pooling}")
+
+        # Linear output layer
         x = self.output_layer(x)
         return x
-
-    def reset_parameters(self):
-        nn.init.kaiming_uniform_(self.output_layer.weight, a=math.sqrt(5))
-        if self.output_layer.bias is not None:
-            fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.output_layer.weight)
-            bound = 1 / math.sqrt(fan_in)
-            nn.init.uniform_(self.output_layer.bias, -bound, bound)

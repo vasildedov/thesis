@@ -30,10 +30,10 @@ else:
 
 # Load data
 train, test = train_test_split(freq)
-num_series = 1
-filtered_series = train["unique_id"].unique()[:num_series]
-train = train[train["unique_id"].isin(filtered_series)]
-test = test[test["unique_id"].isin(filtered_series)]
+# num_series = 1
+# filtered_series = train["unique_id"].unique()[:num_series]
+# train = train[train["unique_id"].isin(filtered_series)]
+# test = test[test["unique_id"].isin(filtered_series)]
 
 if max_length:
     train = truncate_series(train, max_length)
