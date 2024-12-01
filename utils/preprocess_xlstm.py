@@ -1,7 +1,16 @@
 import torch
 import numpy as np
 import torch.nn as nn
-from datasetsforecast.m4 import M4, M4Info, M4Evaluation
+from torch.nn.init import xavier_uniform_
+from xlstm import (
+    xLSTMBlockStack,
+    xLSTMBlockStackConfig,
+    mLSTMBlockConfig,
+    mLSTMLayerConfig,
+    sLSTMBlockConfig,
+    sLSTMLayerConfig,
+    FeedForwardConfig,
+)
 
 # Additional utility functions for diagnostics
 def log_gradients(model):
@@ -12,31 +21,18 @@ def log_gradients(model):
         else:
             print(f"{name}: No gradients (possibly unused in computation)")
 
+
 def log_weights(model):
     print("\nWeight Update Statistics:")
     for name, param in model.named_parameters():
         if param.requires_grad:
             print(f"{name}: Weight Min={param.min().item()}, Max={param.max().item()}, Mean={param.mean().item()}")
 
+
 def log_activations(x, name):
     print(f"{name}: Min={x.min().item()}, Max={x.max().item()}, Mean={x.mean().item()}")
     return x
 
-
-# model checks
-from torch.nn.init import xavier_uniform_
-def fix_inits(stack):
-    # Fix initialization
-    for name, param in stack.named_parameters():
-        print(name, param)
-        if param.dim() > 1 and "weight" in name:  # Apply Xavier only for tensors with >1 dimension
-            xavier_uniform_(param)
-        elif "bias" in name:  # Initialize biases to 0
-            torch.nn.init.zeros_(param)
-        elif "norm.weight" in name:  # Set norm weights to 1
-            torch.nn.init.ones_(param)
-        elif "learnable_skip" in name:  # Ensure learnable_skip parameters are trainable
-            param.requires_grad = True
 
 # debug through blocks
 def debug_blocks(X, embedding_dim, stack):
@@ -84,6 +80,7 @@ def train_xlstm(device, model, epochs, X_train, y_train, batch_size, optimizer, 
         print(f"Epoch [{epoch + 1}/{epochs}], Loss: {epoch_loss:.4f}")
         # log_weights(model)
 
+
 # Recursive predict with diagnostics
 def recursive_predict_xlstm(model, X_input, horizon, device, scalers, test):
     """
@@ -115,26 +112,9 @@ def recursive_predict_xlstm(model, X_input, horizon, device, scalers, test):
 
     return np.array(predictions_rescaled)
 
-# Sanity checks for input data
-def sanity_check_data(X_train, y_train, X_test):
-    print("Sanity Check: Input Data")
-    print(f"X_train shape: {X_train.shape}")
-    print(f"y_train shape: {y_train.shape}")
-    print(f"X_test shape: {X_test.shape}")
-    print(f"X_train contains NaN: {torch.isnan(X_train).any().item()}")
-    print(f"y_train contains NaN: {torch.isnan(y_train).any().item()}")
-    print(f"X_train contains Inf: {torch.isinf(X_train).any().item()}")
-    print(f"y_train contains Inf: {torch.isinf(y_train).any().item()}")
-
-# Sanity checks for model initialization
-def sanity_check_model(model):
-    print("\nSanity Check: Model Initialization")
-    for name, param in model.named_parameters():
-        if param.requires_grad:
-            print(f"{name}: Min={param.min().item():.4f}, Max={param.max().item():.4f}, Mean={param.mean().item():.4f}, Requires Grad={param.requires_grad}")
 
 # Add diagnostics to training and evaluation
-def train_and_evaluate_xlstm(device, model, X_train, y_train, X_test, scalers, epochs, batch_size, horizon, test, freq, criterion):
+def train_and_predict(device, model, X_train, y_train, X_test, scalers, epochs, batch_size, horizon, test, freq, criterion):
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
 
     # Sanity checks
@@ -150,10 +130,77 @@ def train_and_evaluate_xlstm(device, model, X_train, y_train, X_test, scalers, e
     # Reshape predictions for evaluation
     num_series = test["unique_id"].nunique()
     y_pred = y_pred.reshape(num_series, horizon)
-
-    # Evaluate using sMAPE
-    y_true = test['y'].values.reshape(num_series, horizon)
-    from utils.ml_models import calculate_smape
-    calculate_smape(y_true, y_pred)
-
     return y_pred
+
+
+# Sanity checks for input data
+def sanity_check_data(X_train, y_train, X_test):
+    print("Sanity Check: Input Data")
+    print(f"X_train shape: {X_train.shape}")
+    print(f"y_train shape: {y_train.shape}")
+    print(f"X_test shape: {X_test.shape}")
+    print(f"X_train contains NaN: {torch.isnan(X_train).any().item()}")
+    print(f"y_train contains NaN: {torch.isnan(y_train).any().item()}")
+    print(f"X_train contains Inf: {torch.isinf(X_train).any().item()}")
+    print(f"y_train contains Inf: {torch.isinf(y_train).any().item()}")
+
+
+# Sanity checks for model initialization
+def sanity_check_model(model):
+    print("\nSanity Check: Model Initialization")
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            print(f"{name}: Min={param.min().item():.4f}, Max={param.max().item():.4f}, Mean={param.mean().item():.4f}, Requires Grad={param.requires_grad}")
+
+
+def get_stack_cfg(embedding_dim, look_back, device, fix_inits_bool=False):
+    # Define an enhanced xLSTM configuration
+    cfg = xLSTMBlockStackConfig(
+        mlstm_block=mLSTMBlockConfig(
+            mlstm=mLSTMLayerConfig(
+                conv1d_kernel_size=6,  # Larger kernel for capturing broader patterns
+                qkv_proj_blocksize=8,  # Increased projection blocksize for better feature learning
+                num_heads=8,  # More attention heads for complex patterns
+                dropout=0.3,  # Slightly higher dropout for regularization
+                embedding_dim=embedding_dim,
+            )
+        ),
+        slstm_block=sLSTMBlockConfig(
+            slstm=sLSTMLayerConfig(
+                backend='vanilla',
+                num_heads=4,  # More heads for better focus on features
+                conv1d_kernel_size=10,  # Larger convolution for feature aggregation
+                bias_init="powerlaw_blockdependent",
+                embedding_dim=embedding_dim
+            ),
+            feedforward=FeedForwardConfig(
+                proj_factor=5.0,  # Larger projection factor for expanded representations
+                act_fn="gelu",  # Smooth activation for stability
+                dropout=0.3,
+                embedding_dim=embedding_dim
+            ),
+        ),
+        context_length=look_back + 1,
+        num_blocks=8,  # Increased blocks for deeper model
+        embedding_dim=embedding_dim,
+        slstm_at=[0, 2, 4, 6]  # Strategically placed sLSTM blocks
+    )
+
+    stack = xLSTMBlockStack(cfg).to(device)
+    if fix_inits_bool:
+        fix_inits(stack)
+    return stack
+
+
+# model checks
+def fix_inits(stack):
+    # Fix initialization
+    for name, param in stack.named_parameters():
+        if param.dim() > 1 and "weight" in name:  # Apply Xavier only for tensors with >1 dimension
+            xavier_uniform_(param)
+        elif "bias" in name:  # Initialize biases to 0
+            torch.nn.init.zeros_(param)
+        elif "norm.weight" in name:  # Set norm weights to 1
+            torch.nn.init.ones_(param)
+        elif "learnable_skip" in name:  # Ensure learnable_skip parameters are trainable
+            param.requires_grad = True
