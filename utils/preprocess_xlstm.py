@@ -22,6 +22,36 @@ def log_activations(x, name):
     print(f"{name}: Min={x.min().item()}, Max={x.max().item()}, Mean={x.mean().item()}")
     return x
 
+
+# model checks
+from torch.nn.init import xavier_uniform_
+def fix_inits(stack):
+    # Fix initialization
+    for name, param in stack.named_parameters():
+        print(name, param)
+        if param.dim() > 1 and "weight" in name:  # Apply Xavier only for tensors with >1 dimension
+            xavier_uniform_(param)
+        elif "bias" in name:  # Initialize biases to 0
+            torch.nn.init.zeros_(param)
+        elif "norm.weight" in name:  # Set norm weights to 1
+            torch.nn.init.ones_(param)
+        elif "learnable_skip" in name:  # Ensure learnable_skip parameters are trainable
+            param.requires_grad = True
+
+# debug through blocks
+def debug_blocks(X, embedding_dim, stack):
+    x = X[:10].clone().detach()
+    input_projection = nn.Linear(1, embedding_dim)
+    x = input_projection(x)
+
+    for i, block in enumerate(stack.blocks):
+        x = block(x)
+        if torch.isnan(x).any():
+            print(f"NaN detected after Block {i}! Investigating...")
+            raise ValueError(f"NaN detected in block {i}")
+        print(f"After Block {i}: Min={x.min().item()}, Max={x.max().item()}, Mean={x.mean().item()}, Shape={x.shape}")
+
+
 # Training function
 def train_xlstm(device, model, epochs, X_train, y_train, batch_size, optimizer, criterion):
     for epoch in range(epochs):

@@ -81,18 +81,11 @@ class xLSTMTimeSeriesModel(nn.Module):
         self.input_projection = nn.Linear(1, embedding_dim)  # Project input to embedding_dim
         self.input_layer_norm = nn.LayerNorm(embedding_dim)
         self.xlstm_stack = xlstm_stack
-        # Enhanced output projection with more linear layers
-        self.output_layer = nn.Sequential(
-            nn.Linear(embedding_dim, embedding_dim * 2),  # Expand to higher dimensions
-            nn.GELU(),  # Smooth activation
-            nn.Dropout(0.2),  # Regularization
-            nn.Linear(embedding_dim * 2, embedding_dim),  # Project back
-            nn.ReLU(),  # Activation
-            nn.Linear(embedding_dim, output_size)  # Final projection
-        )
+        self.output_layer = nn.Linear(embedding_dim, output_size)
+
     def forward(self, x):
         x = self.input_projection(x)  # Expand input to embedding_dim
-        x = self.input_layer_norm(x)
+        # x = self.input_layer_norm(x)
         x = self.xlstm_stack(x)
         x = x[:, -1, :]  # Select last timestep
         x = self.output_layer(x)

@@ -19,14 +19,30 @@ from xlstm import (
     sLSTMLayerConfig,
     FeedForwardConfig,
 )
-from utils.preprocess_xlstm import train_and_evaluate_xlstm
+from utils.preprocess_xlstm import train_and_evaluate_xlstm, fix_inits, debug_blocks
 
+# args
 # Choose the frequency
 freq = 'Hourly'  # or 'Daily'
 
+
+
+num_series = 1  # for filtering
+
+# Training parameters
+# Define embedding dimension
+embedding_dim = 64
+epochs = 10
+batch_size = 128
+criterion = nn.MSELoss()
+# criterion = nn.SmoothL1Loss(beta=1.0)
+output_size = 1
+# Set up device
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 train, test = train_test_split(freq)
 
-num_series = 1
+# filtering series
 filtered_series = train["unique_id"].unique()[:num_series]
 train = train[train["unique_id"].isin(filtered_series)]
 test = test[test["unique_id"].isin(filtered_series)]
@@ -45,7 +61,6 @@ elif freq == 'Hourly':
 else:
     raise ValueError("Unsupported frequency. Choose 'Daily' or 'Hourly'.")
 
-
 # Create train and test windows
 X_train_xlstm, y_train_xlstm, scalers_xlstm = create_train_windows(train, look_back, horizon)
 X_test_xlstm = create_test_windows(train, look_back, scalers_xlstm)
@@ -55,91 +70,13 @@ X_train_xlstm = X_train_xlstm.clone().detach().unsqueeze(-1).float().requires_gr
 y_train_xlstm = y_train_xlstm.clone().detach().unsqueeze(-1).float()
 X_test_xlstm = X_test_xlstm.clone().detach().unsqueeze(-1).float().requires_grad_()  # Add feature dimension
 
-# Set up device
-device = torch.device("cpu" if torch.cuda.is_available() else "cpu")
 
 # Move data to device
 X_train_xlstm = X_train_xlstm.to(device)
 y_train_xlstm = y_train_xlstm.to(device)
 X_test_xlstm = X_test_xlstm.to(device)
 
-# Define embedding dimension
-embedding_dim = 64  # Should be 1 for univariate time series
 
-# Define xLSTM configuration
-# cfg = xLSTMBlockStackConfig(
-#     mlstm_block=mLSTMBlockConfig(
-#         mlstm=mLSTMLayerConfig(
-#             conv1d_kernel_size=4,
-#             qkv_proj_blocksize=4,
-#             num_heads=4,  # Set to 1
-#             dropout=0.2
-#         )
-#     ),
-#     slstm_block=sLSTMBlockConfig(
-#         slstm=sLSTMLayerConfig(
-#             backend="vanilla" if torch.cuda.is_available() else "vanilla",
-#             num_heads=1,  # Set to 1
-#             conv1d_kernel_size=8,
-#             bias_init="powerlaw_blockdependent",  # constant
-#         ),
-#         feedforward=FeedForwardConfig(
-#             proj_factor=4.0,
-#             act_fn="gelu",
-#             dropout=0.2
-#         ),
-#     ),
-#     context_length=look_back+1,
-#     num_blocks=2,
-#     embedding_dim=embedding_dim,
-#     slstm_at=[x for x in range(2) if x % 2 == 0],  # Alternate placement
-# )
-#
-# cfg = xLSTMBlockStackConfig(
-#     mlstm_block=mLSTMBlockConfig(
-#         mlstm=mLSTMLayerConfig(
-#             conv1d_kernel_size=4,
-#             qkv_proj_blocksize=4,
-#             num_heads=1,
-#             proj_factor=1.0,
-#             dropout=0.1,
-#             embedding_dim=embedding_dim,
-#         )
-#     ),
-#     slstm_block=sLSTMBlockConfig(
-#         slstm=sLSTMLayerConfig(
-#             backend="vanilla",
-#             num_heads=1,
-#             conv1d_kernel_size=4,
-#             bias_init="powerlaw_blockdependent",
-#             dropout=0.1,
-#             embedding_dim=embedding_dim,
-#         ),
-#         feedforward=FeedForwardConfig(
-#             proj_factor=1.5,
-#             act_fn="gelu",
-#             dropout=0.1,
-#         ),
-#     ),
-#     context_length=look_back + 1,
-#     num_blocks=4,  # Fewer blocks for simplicity
-#     embedding_dim=embedding_dim,
-#     slstm_at=[1, 3],
-# )
-# cfg = xLSTMBlockStackConfig(
-#     mlstm_block=None,  # Use only sLSTM blocks
-#     slstm_block=sLSTMBlockConfig(
-#         slstm=sLSTMLayerConfig(
-#             backend="vanilla",
-#             num_heads=1,
-#             conv1d_kernel_size=4,
-#             bias_init="constant",
-#         )
-#     ),
-#     context_length=look_back + 1,
-#     num_blocks=5,  # Reduce number of blocks
-#     embedding_dim=embedding_dim,
-# )
 # Define an enhanced xLSTM configuration
 cfg = xLSTMBlockStackConfig(
     mlstm_block=mLSTMBlockConfig(
@@ -153,7 +90,7 @@ cfg = xLSTMBlockStackConfig(
     ),
     slstm_block=sLSTMBlockConfig(
         slstm=sLSTMLayerConfig(
-            backend="vanilla",
+            backend="cuda",
             num_heads=4,  # More heads for better focus on features
             conv1d_kernel_size=10,  # Larger convolution for feature aggregation
             bias_init="powerlaw_blockdependent",
@@ -175,64 +112,12 @@ cfg = xLSTMBlockStackConfig(
 # Instantiate model
 xlstm_stack = xLSTMBlockStack(cfg).to(device)
 
-from torch.nn.init import xavier_uniform_
-
-# Fix initialization
-for name, param in xlstm_stack.named_parameters():
-    print(name, param)
-    if param.dim() > 1 and "weight" in name:  # Apply Xavier only for tensors with >1 dimension
-        xavier_uniform_(param)
-    elif "bias" in name:  # Initialize biases to 0
-        torch.nn.init.zeros_(param)
-    elif "norm.weight" in name:  # Set norm weights to 1
-        torch.nn.init.ones_(param)
-    elif "learnable_skip" in name:  # Ensure learnable_skip parameters are trainable
-        param.requires_grad = True
-
-
-# Define a hook function for debugging
-# def debug_hook(module, input, output):
-#     print(f"{module}: Output Mean={output.mean().item()}, Std={output.std().item()}")
-#
-# # Register hooks to inspect intermediate activations
-# for name, module in xlstm_stack.named_modules():
-#     if isinstance(module, (torch.nn.Linear, torch.nn.LayerNorm)):
-#         module.register_forward_hook(debug_hook)
-
-output_size = 1
+# model checks and init
+fix_inits(xlstm_stack)
 model = xLSTMTimeSeriesModel(xlstm_stack, output_size, embedding_dim).to(device)
 
-for param in model.parameters():
-    param.requires_grad = True
-
-# Training parameters
-epochs = 10
-batch_size = 128
-# criterion = nn.MSELoss()
-criterion = nn.SmoothL1Loss(beta=1.0)
-
-# Check for NaNs and Infs
-def check_for_nans_infs(data, name):
-    print(f"{name} contains NaN:", torch.isnan(data).any())
-    print(f"{name} contains Inf:", torch.isinf(data).any())
-
-check_for_nans_infs(X_train_xlstm, "X_train_xlstm")
-check_for_nans_infs(y_train_xlstm, "y_train_xlstm")
-
 # Debug through blocks
-x = X_train_xlstm[:10].clone().detach()
-# for i, block in enumerate(xlstm_stack.blocks):
-#     x = block(x)
-#     if torch.isnan(x).any():
-#         print(f"NaN detected after Block {i}! Investigating...")
-#         raise ValueError(f"NaN detected in block {i}")
-#     print(f"After Block {i}: Min={x.min().item()}, Max={x.max().item()}, Mean={x.mean().item()}, Shape={x.shape}")
-
-
-# Training parameters
-X_dummy = torch.rand(100, 120, 1)  # Random input
-y_dummy = torch.rand(100)  # Random target
-
+debug_blocks(X_train_xlstm, embedding_dim, xlstm_stack)
 
 # Train and evaluate xLSTM model
 print("\nTraining and Evaluating xLSTM Model...")
@@ -243,7 +128,7 @@ y_pred_xlstm = train_and_evaluate_xlstm(
     y_train_xlstm,
     X_test_xlstm,
     scalers_xlstm,
-    epochs,
+    1,
     batch_size,
     horizon,
     test,
@@ -253,7 +138,7 @@ y_pred_xlstm = train_and_evaluate_xlstm(
 
 y_true = test['y'].values.reshape(num_series, horizon)
 
-calculate_smape(y_true, y_pred_xlstm)
+print('SMAPE:', round(calculate_smape(y_true, y_pred_xlstm), 2))
 
 
 # import torch
