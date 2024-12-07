@@ -12,7 +12,8 @@ from xlstm import (
     sLSTMLayerConfig,
     FeedForwardConfig,
 )
-from utils.m4_train_dl import recursive_predict
+from utils.m4_train_dl import recursive_predict, train_model
+
 
 # Additional utility functions for diagnostics
 def log_gradients(model):
@@ -50,38 +51,6 @@ def debug_blocks(X, embedding_dim, stack):
         print(f"After Block {i}: Min={x.min().item()}, Max={x.max().item()}, Mean={x.mean().item()}, Shape={x.shape}")
 
 
-# Training function
-def train_xlstm(device, model, epochs, X_train, y_train, batch_size, optimizer, criterion):
-    for epoch in range(epochs):
-        model.train()
-        permutation = torch.randperm(X_train.size(0))
-        epoch_loss = 0.0
-
-        for i in range(0, X_train.size(0), batch_size):
-            indices = permutation[i:i + batch_size]
-            batch_X = X_train[indices].to(device)
-            batch_y = y_train[indices].to(device)
-
-            optimizer.zero_grad()
-            outputs = model(batch_X).squeeze(-1)  # Expected shape: [batch_size]
-
-            loss = criterion(outputs, batch_y)
-            if torch.isnan(loss):
-                print("Loss is NaN. Investigate inputs and outputs.")
-
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)  # Clip gradients
-
-            optimizer.step()
-            epoch_loss += loss.item()
-
-            # Log sample outputs and gradients during training
-            # print(f"Epoch {epoch + 1}, Batch {i // batch_size}: Sample outputs: {outputs[:5].detach().cpu().numpy()}")
-            # log_gradients(model)
-
-        print(f"Epoch [{epoch + 1}/{epochs}], Loss: {epoch_loss:.4f}")
-        # log_weights(model)
-
 # Add diagnostics to training and evaluation
 def train_and_predict(device, model, X_train, y_train, X_test, scalers, epochs, batch_size, horizon, test, criterion):
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
@@ -94,7 +63,7 @@ def train_and_predict(device, model, X_train, y_train, X_test, scalers, epochs, 
     start_time = time.time()
 
     # Train the model
-    train_xlstm(device, model, epochs, X_train, y_train, batch_size, optimizer, criterion)
+    train_model(model, X_train, y_train, batch_size, optimizer, criterion, epochs, device=device, clip_grad_norm=True)
 
     # End timing
     end_time = time.time()

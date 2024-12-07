@@ -48,10 +48,10 @@ def recursive_predict(model, X_input, horizon, device, scalers):
 
     return np.array(predictions_rescaled)
 
-
-def train_model(model, X_train, y_train, batch_size, optimizer, criterion, epochs):
+def train_model(model, X_train, y_train, batch_size, optimizer, criterion, epochs,
+                device=None, clip_grad_norm=None):
     """
-    Train a neural network model.
+    Train a neural network model with support for gradient clipping and dynamic input shape handling.
 
     Args:
         model (torch.nn.Module): The model to train.
@@ -61,29 +61,50 @@ def train_model(model, X_train, y_train, batch_size, optimizer, criterion, epoch
         optimizer (torch.optim.Optimizer): Optimizer for training.
         criterion (torch.nn.Module): Loss function.
         epochs (int): Number of training epochs.
+        device (torch.device, optional): Device to train on ('cpu' or 'cuda'). Defaults to None (no transfer).
+        clip_grad_norm (float, optional): Max norm for gradient clipping. Defaults to None (no clipping).
     """
+    if device:
+        model.to(device)
+        X_train = X_train.to(device)
+        y_train = y_train.to(device)
+
     for epoch in range(epochs):
         model.train()
         permutation = torch.randperm(X_train.size(0))
-        epoch_loss = 0
+        epoch_loss = 0.0
 
         for i in range(0, X_train.size(0), batch_size):
             indices = permutation[i:i + batch_size]
-            batch_X, batch_y = X_train[indices], y_train[indices]
+            batch_X = X_train[indices]
+            batch_y = y_train[indices]
 
             optimizer.zero_grad()
 
-            # Ensure correct input dimensions for RNN/Transformer
-            if batch_X.dim() == 2:  # If the input is [batch_size, seq_len], add the feature dimension
+            # Adjust input dimensions for RNNs/Transformers if necessary
+            if batch_X.dim() == 2:  # If input is [batch_size, seq_len], add feature dimension
                 batch_X = batch_X.unsqueeze(-1)  # Shape becomes [batch_size, seq_len, 1]
-            outputs = model(batch_X).squeeze(-1)  # Squeeze to [batch_size]
+
+            outputs = model(batch_X).squeeze(-1)  # Ensure output matches expected shape [batch_size]
 
             loss = criterion(outputs, batch_y)
-            loss.backward()
-            optimizer.step()
+            if torch.isnan(loss):
+                print("Loss is NaN. Investigate inputs and outputs.")
+                return
 
+            loss.backward()
+
+            if clip_grad_norm:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=clip_grad_norm)
+
+            optimizer.step()
             epoch_loss += loss.item()
-        print(f'Epoch [{epoch + 1}/{epochs}], Loss: {epoch_loss:.4f}')
+            # Log sample outputs and gradients during training
+            # print(f"Epoch {epoch + 1}, Batch {i // batch_size}: Sample outputs: {outputs[:5].detach().cpu().numpy()}")
+            # log_gradients(model)
+
+        print(f"Epoch [{epoch + 1}/{epochs}], Loss: {epoch_loss:.4f}")
+        # log_weights(model)
 
 
 def train_and_predict(device, model_class, X_train, y_train, X_test, scalers, epochs,
