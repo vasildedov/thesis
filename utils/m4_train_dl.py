@@ -26,6 +26,9 @@ def recursive_predict(model, X_input, horizon, device, scalers):
             # Model output (assumed to be [batch_size] or [batch_size, 1])
             y_pred = model(X_current)
 
+            if _ > 0 and (y_pred[0].item() == predictions[-1][0]):
+                print(f"Warning: Repeated prediction detected at step {_}: {y_pred[0].item()}")
+
             # Ensure y_pred has shape [batch_size, 1, input_size]
             if y_pred.dim() == 1:  # Flattened output [batch_size]
                 y_pred = y_pred.unsqueeze(-1).unsqueeze(-1)  # [batch_size, 1, 1]

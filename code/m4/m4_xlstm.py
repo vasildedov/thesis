@@ -1,16 +1,14 @@
 import time
 from datetime import datetime
 import json
-
 import torch
 import torch.nn as nn
 import numpy as np
 import pandas as pd
-from utils.m4_preprocess_ml import train_test_split, truncate_series
+from utils.m4_preprocess import train_test_split, truncate_series
 from datasetsforecast.m4 import M4, M4Info, M4Evaluation
 from utils.models_ml import calculate_smape
-from utils.m4_preprocess_dl import create_train_windows, create_test_windows, recursive_predict
-
+from utils.m4_preprocess_dl import create_train_windows, create_test_windows
 from utils.models_dl import xLSTMTimeSeriesModel
 from utils.m4_train_xlstm import train_and_predict, get_stack_cfg
 
@@ -86,7 +84,6 @@ y_pred_xlstm, duration = train_and_predict(
     batch_size,
     horizon,
     test,
-    freq,
     criterion
 )
 
@@ -117,8 +114,8 @@ with open(metadata_path, "w") as f:
     json.dump(metadata, f, indent=4)
 print(f"Metadata saved to {metadata_path}")
 
-
 '''
+from utils.m4_train_dl import recursive_predict
 # for inferences
 # Re-instantiate the model
 model_loaded = xLSTMTimeSeriesModel(xlstm_stack, output_size=1, embedding_dim=embedding_dim).to(device)

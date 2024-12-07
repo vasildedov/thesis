@@ -12,6 +12,7 @@ from xlstm import (
     sLSTMLayerConfig,
     FeedForwardConfig,
 )
+from utils.m4_train_dl import recursive_predict
 
 # Additional utility functions for diagnostics
 def log_gradients(model):
@@ -81,41 +82,8 @@ def train_xlstm(device, model, epochs, X_train, y_train, batch_size, optimizer, 
         print(f"Epoch [{epoch + 1}/{epochs}], Loss: {epoch_loss:.4f}")
         # log_weights(model)
 
-
-# Recursive predict with diagnostics
-def recursive_predict_xlstm(model, X_input, horizon, device, scalers, test):
-    """
-    Perform recursive forecasting for multi-step horizons.
-    """
-    model.eval()
-    predictions = []
-    X_current = X_input.clone().to(device)
-
-    with torch.no_grad():
-        for step in range(horizon):
-            # print(f"Step {step}: X_current sample (before): {X_current[0, :, 0]}")
-            y_pred = model(X_current)  # Expected shape: [batch_size, 1]
-            # print(f"Step {step}: y_pred sample: {y_pred[0].item()}")
-
-            if step > 0 and (y_pred[0].item() == predictions[-1][0]):
-                print(f"Warning: Repeated prediction detected at step {step}: {y_pred[0].item()}")
-
-            y_pred = y_pred.unsqueeze(-1)  # Shape: [batch_size, 1, 1]
-            X_current = torch.cat((X_current[:, 1:, :], y_pred), dim=1)
-
-            predictions.append(y_pred.cpu().numpy())
-
-    predictions = np.concatenate(predictions, axis=1)
-    predictions_rescaled = []
-    for i, (scaler, series_id) in enumerate(zip(scalers.values(), test["unique_id"].unique())):
-        pred_scaled = scaler.inverse_transform(predictions[i].reshape(-1, 1)).flatten()
-        predictions_rescaled.append(pred_scaled)
-
-    return np.array(predictions_rescaled)
-
-
 # Add diagnostics to training and evaluation
-def train_and_predict(device, model, X_train, y_train, X_test, scalers, epochs, batch_size, horizon, test, freq, criterion):
+def train_and_predict(device, model, X_train, y_train, X_test, scalers, epochs, batch_size, horizon, test, criterion):
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
 
     # Sanity checks
@@ -132,7 +100,7 @@ def train_and_predict(device, model, X_train, y_train, X_test, scalers, epochs, 
     end_time = time.time()
 
     # Predict
-    y_pred = recursive_predict_xlstm(model, X_test, horizon, device, scalers, test)
+    y_pred = recursive_predict(model, X_test, horizon, device, scalers)
 
     # Reshape predictions for evaluation
     num_series = test["unique_id"].nunique()
