@@ -1,6 +1,4 @@
-import time
 import torch
-import numpy as np
 import torch.nn as nn
 from torch.nn.init import xavier_uniform_
 from xlstm import (
@@ -12,29 +10,6 @@ from xlstm import (
     sLSTMLayerConfig,
     FeedForwardConfig,
 )
-from utils.m4_train_dl import recursive_predict, train_model
-
-
-# Additional utility functions for diagnostics
-def log_gradients(model):
-    print("\nGradient Statistics:")
-    for name, param in model.named_parameters():
-        if param.grad is not None:
-            print(f"{name}: Grad Min={param.grad.min().item()}, Max={param.grad.max().item()}, Mean={param.grad.mean().item()}")
-        else:
-            print(f"{name}: No gradients (possibly unused in computation)")
-
-
-def log_weights(model):
-    print("\nWeight Update Statistics:")
-    for name, param in model.named_parameters():
-        if param.requires_grad:
-            print(f"{name}: Weight Min={param.min().item()}, Max={param.max().item()}, Mean={param.mean().item()}")
-
-
-def log_activations(x, name):
-    print(f"{name}: Min={x.min().item()}, Max={x.max().item()}, Mean={x.mean().item()}")
-    return x
 
 
 # debug through blocks
@@ -49,52 +24,6 @@ def debug_blocks(X, embedding_dim, stack):
             print(f"NaN detected after Block {i}! Investigating...")
             raise ValueError(f"NaN detected in block {i}")
         print(f"After Block {i}: Min={x.min().item()}, Max={x.max().item()}, Mean={x.mean().item()}, Shape={x.shape}")
-
-
-# Add diagnostics to training and evaluation
-def train_and_predict(device, model, X_train, y_train, X_test, scalers, epochs, batch_size, horizon, test, criterion):
-    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
-
-    # Sanity checks
-    sanity_check_data(X_train, y_train, X_test)
-    # sanity_check_model(model)
-
-    # Start timing
-    start_time = time.time()
-
-    # Train the model
-    train_model(model, X_train, y_train, batch_size, optimizer, criterion, epochs, device=device, clip_grad_norm=True)
-
-    # End timing
-    end_time = time.time()
-
-    # Predict
-    y_pred = recursive_predict(model, X_test, horizon, device, scalers)
-
-    # Reshape predictions for evaluation
-    num_series = test["unique_id"].nunique()
-    y_pred = y_pred.reshape(num_series, horizon)
-    return y_pred, end_time - start_time
-
-
-# Sanity checks for input data
-def sanity_check_data(X_train, y_train, X_test):
-    print("Sanity Check: Input Data")
-    print(f"X_train shape: {X_train.shape}")
-    print(f"y_train shape: {y_train.shape}")
-    print(f"X_test shape: {X_test.shape}")
-    print(f"X_train contains NaN: {torch.isnan(X_train).any().item()}")
-    print(f"y_train contains NaN: {torch.isnan(y_train).any().item()}")
-    print(f"X_train contains Inf: {torch.isinf(X_train).any().item()}")
-    print(f"y_train contains Inf: {torch.isinf(y_train).any().item()}")
-
-
-# Sanity checks for model initialization
-def sanity_check_model(model):
-    print("\nSanity Check: Model Initialization")
-    for name, param in model.named_parameters():
-        if param.requires_grad:
-            print(f"{name}: Min={param.min().item():.4f}, Max={param.max().item():.4f}, Mean={param.mean().item():.4f}, Requires Grad={param.requires_grad}")
 
 
 def get_stack_cfg(embedding_dim, look_back, device, fix_inits_bool=False):

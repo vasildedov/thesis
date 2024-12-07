@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 from sklearn.preprocessing import StandardScaler
+import time
 
 
 def recursive_predict(model, X_input, horizon, device, scalers):
@@ -107,38 +108,106 @@ def train_model(model, X_train, y_train, batch_size, optimizer, criterion, epoch
         # log_weights(model)
 
 
-def train_and_predict(device, model_class, X_train, y_train, X_test, scalers, epochs,
-                       batch_size, criterion, horizon, test):
+def train_and_predict(
+    device, model_class_or_instance, X_train, y_train, X_test, scalers, epochs,
+    batch_size, horizon, test, criterion, optimizer_class=None, learning_rate=1e-3,
+    clip_grad_norm=None, perform_sanity_checks=False
+):
     """
-    Train a model and evaluate its performance.
+    Train a model and evaluate its performance with optional diagnostics.
 
     Args:
         device (torch.device): Device for computation.
-        model_class (class): Class of the model to instantiate.
-        model_name (str): Name of the model for display.
+        model_class_or_instance (class or torch.nn.Module): Model class to instantiate or a pre-initialized model.
         X_train (torch.Tensor): Training inputs.
         y_train (torch.Tensor): Training targets.
         X_test (torch.Tensor): Test inputs.
         scalers (dict): Scalers for inverse transformation.
         epochs (int): Number of epochs for training.
         batch_size (int): Batch size for training.
-        criterion (torch.nn.Module): Loss function.
         horizon (int): Forecasting horizon.
         test (pd.DataFrame): Test DataFrame.
+        criterion (torch.nn.Module): Loss function.
+        optimizer_class (torch.optim.Optimizer, optional): Optimizer class (default: AdamW).
+        learning_rate (float, optional): Learning rate for the optimizer.
+        clip_grad_norm (float, optional): Max norm for gradient clipping (default: None, no clipping).
+        perform_sanity_checks (bool, optional): Perform sanity checks on inputs and model (default: True).
 
     Returns:
-        np.ndarray: Predicted values.
+        tuple: (Predicted values, Training time)
     """
-    model = model_class().to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    # Initialize model
+    if isinstance(model_class_or_instance, torch.nn.Module):
+        model = model_class_or_instance.to(device)
+    else:
+        model = model_class_or_instance().to(device)
+
+    # Initialize optimizer
+    optimizer_class = optimizer_class or torch.optim.AdamW
+    optimizer = optimizer_class(model.parameters(), lr=learning_rate)
+
+    # Perform sanity checks if enabled
+    if perform_sanity_checks:
+        sanity_check_data(X_train, y_train, X_test)
+
+    # Start timing
+    start_time = time.time()
 
     # Train the model
-    train_model(model, X_train, y_train, batch_size, optimizer, criterion, epochs)
+    train_model(
+        model, X_train, y_train, batch_size, optimizer, criterion, epochs,
+        device=device, clip_grad_norm=clip_grad_norm
+    )
 
-    # Make predictions using recursive forecasting
+    # End timing
+    end_time = time.time()
+
+    # Predict using recursive forecasting
     y_pred = recursive_predict(model, X_test, horizon, device, scalers)
 
     # Reshape predictions to match the expected shape
-    num_series = test['unique_id'].nunique()
+    num_series = test["unique_id"].nunique()
     y_pred = y_pred.reshape(num_series, horizon)
-    return y_pred
+
+    # Return predictions and training time
+    return y_pred, end_time - start_time
+
+
+# Sanity checks for input data
+def sanity_check_data(X_train, y_train, X_test):
+    print("Sanity Check: Input Data")
+    print(f"X_train shape: {X_train.shape}")
+    print(f"y_train shape: {y_train.shape}")
+    print(f"X_test shape: {X_test.shape}")
+    print(f"X_train contains NaN: {torch.isnan(X_train).any().item()}")
+    print(f"y_train contains NaN: {torch.isnan(y_train).any().item()}")
+    print(f"X_train contains Inf: {torch.isinf(X_train).any().item()}")
+    print(f"y_train contains Inf: {torch.isinf(y_train).any().item()}")
+
+
+def sanity_check_model(model):
+    print("\nSanity Check: Model Initialization")
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            print(f"{name}: Min={param.min().item():.4f}, Max={param.max().item():.4f}, Mean={param.mean().item():.4f}, Requires Grad={param.requires_grad}")
+
+
+def log_gradients(model):
+    print("\nGradient Statistics:")
+    for name, param in model.named_parameters():
+        if param.grad is not None:
+            print(f"{name}: Grad Min={param.grad.min().item()}, Max={param.grad.max().item()}, Mean={param.grad.mean().item()}")
+        else:
+            print(f"{name}: No gradients (possibly unused in computation)")
+
+
+def log_weights(model):
+    print("\nWeight Update Statistics:")
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            print(f"{name}: Weight Min={param.min().item()}, Max={param.max().item()}, Mean={param.mean().item()}")
+
+
+def log_activations(x, name):
+    print(f"{name}: Min={x.min().item()}, Max={x.max().item()}, Mean={x.mean().item()}")
+    return x

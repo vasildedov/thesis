@@ -1,12 +1,11 @@
 import torch
 import torch.nn as nn
-import numpy as np
-import pandas as pd
+from datasetsforecast.m4 import M4Evaluation
+
 from utils.m4_preprocess import train_test_split, truncate_series
 from utils.m4_preprocess_dl import create_train_windows, create_test_windows
 from utils.m4_train_dl import train_and_predict
 from utils.models_dl import ComplexLSTM, SimpleRNN, TimeSeriesTransformer
-from datasetsforecast.m4 import M4Evaluation
 
 # Choose the frequency
 freq = 'Hourly'  # or 'Daily'
@@ -51,7 +50,7 @@ epochs, batch_size = 10, 32
 
 # Train and evaluate LSTM model
 print("Training and Evaluating LSTM Model...")
-y_pred_lstm = train_and_predict(
+y_pred_lstm, duration = train_and_predict(
     device,
     lambda: ComplexLSTM(
         input_size=1,
@@ -66,15 +65,16 @@ y_pred_lstm = train_and_predict(
     scalers,
     1,
     batch_size,
-    criterion,
     horizon,
-    test
+    test,
+    criterion
 )
 print(f"LSTM Model Evaluation:\n", M4Evaluation.evaluate('data', freq, y_pred_lstm))
+print(f"Training completed in {duration:.2f} seconds")
 
 # Train and evaluate RNN model
 print("\nTraining and Evaluating RNN Model...")
-y_pred_rnn = train_and_predict(
+y_pred_rnn, duration = train_and_predict(
     device,
     lambda: SimpleRNN(
         input_size=1,
@@ -89,15 +89,16 @@ y_pred_rnn = train_and_predict(
     scalers,
     1,
     batch_size,
-    criterion,
     horizon,
-    test
+    test,
+    criterion
 )
 print(f"RNN Model Evaluation:\n", M4Evaluation.evaluate('data', freq, y_pred_rnn))
+print(f"Training completed in {duration:.2f} seconds")
 
 # Train and evaluate Transformer model
 print("\nTraining and Evaluating Transformer Model...")
-y_pred_trans = train_and_predict(
+y_pred_trans, duration = train_and_predict(
     device,
     lambda: TimeSeriesTransformer(
         input_size=1,
@@ -114,8 +115,9 @@ y_pred_trans = train_and_predict(
     scalers,
     1,
     batch_size,
-    criterion,
     horizon,
-    test
+    test,
+    criterion
 )
 print(f"Transformer Model Evaluation:\n", M4Evaluation.evaluate('data', freq, y_pred_trans))
+print(f"Training completed in {duration:.2f} seconds")
