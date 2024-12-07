@@ -4,9 +4,9 @@ import numpy as np
 import pandas as pd
 from utils.m4_preprocess_ml import train_test_split
 from datasetsforecast.m4 import M4, M4Info, M4Evaluation
-from utils.ml_models import calculate_smape
+from utils.models_ml import calculate_smape
 from utils.m4_preprocess_dl import create_rnn_windows, create_test_windows, recursive_predict_rnn, rnn_train
-from utils.dl_models import ComplexLSTM, SimpleRNN
+from utils.models_dl import ComplexLSTM, SimpleRNN
 
 # Parameters
 look_back = 120  # Number of previous time steps for input

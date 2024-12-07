@@ -2,13 +2,10 @@ import torch
 import torch.nn as nn
 import numpy as np
 import pandas as pd
-from utils.m4_preprocess_ml import train_test_split, truncate_series
-from utils.m4_preprocess_dl import (
-    create_train_windows,
-    create_test_windows,
-    train_and_predict
-)
-from utils.dl_models import ComplexLSTM, SimpleRNN, TimeSeriesTransformer
+from utils.m4_preprocess import train_test_split, truncate_series
+from utils.m4_preprocess_dl import create_train_windows, create_test_windows
+from utils.m4_train_dl import train_and_predict
+from utils.models_dl import ComplexLSTM, SimpleRNN, TimeSeriesTransformer
 from datasetsforecast.m4 import M4Evaluation
 
 # Choose the frequency

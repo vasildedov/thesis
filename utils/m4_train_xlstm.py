@@ -1,3 +1,4 @@
+import time
 import torch
 import numpy as np
 import torch.nn as nn
@@ -121,8 +122,14 @@ def train_and_predict(device, model, X_train, y_train, X_test, scalers, epochs, 
     sanity_check_data(X_train, y_train, X_test)
     # sanity_check_model(model)
 
+    # Start timing
+    start_time = time.time()
+
     # Train the model
     train_xlstm(device, model, epochs, X_train, y_train, batch_size, optimizer, criterion)
+
+    # End timing
+    end_time = time.time()
 
     # Predict
     y_pred = recursive_predict_xlstm(model, X_test, horizon, device, scalers, test)
@@ -130,7 +137,7 @@ def train_and_predict(device, model, X_train, y_train, X_test, scalers, epochs, 
     # Reshape predictions for evaluation
     num_series = test["unique_id"].nunique()
     y_pred = y_pred.reshape(num_series, horizon)
-    return y_pred
+    return y_pred, end_time - start_time
 
 
 # Sanity checks for input data
