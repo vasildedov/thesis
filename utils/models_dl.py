@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import math
 
+
 # Define a simple RNN model
 class SimpleRNN(nn.Module):
     def __init__(self, input_size=1, hidden_size=50, num_layers=2, dropout=0.3, output_size=1):

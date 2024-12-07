@@ -4,9 +4,6 @@ import xgboost as xgb
 from sklearn.model_selection import GridSearchCV
 import catboost as cb
 
-def calculate_smape(y_true, y_pred, epsilon=1e-10):
-    return 100 * np.mean(np.abs(y_pred - y_true) / ((np.abs(y_true) + np.abs(y_pred)) / 2 + epsilon))
-
 
 # LightGBM model setup
 class LGBMModel:
