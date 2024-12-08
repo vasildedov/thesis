@@ -11,6 +11,7 @@ from utils.helper import load_existing_model, save_metadata, calculate_smape
 from datasetsforecast.m4 import M4Evaluation
 
 # ===== Parameters =====
+retrain_mode = True
 freq = 'Hourly'  # or 'Daily'
 num_series = 414
 embedding_dim = 64
@@ -46,9 +47,9 @@ y_train = y_train.to(device)
 
 # ===== Models and Configurations =====
 models = [
-    ("ComplexLSTM", ComplexLSTM, {"input_size": 1, "hidden_size": lstm_hidden_size, "num_layers": 3, "dropout": 0.3, "output_size": 1}),
-    ("SimpleRNN", SimpleRNN, {"input_size": 1, "hidden_size": lstm_hidden_size, "num_layers": 3, "dropout": 0.3, "output_size": 1}),
-    ("TimeSeriesTransformer", TimeSeriesTransformer, {"input_size": 1, "d_model": 64, "nhead": 8, "num_layers": 3, "dim_feedforward": 128, "dropout": 0.1, "output_size": 1}),
+    # ("ComplexLSTM", ComplexLSTM, {"input_size": 1, "hidden_size": lstm_hidden_size, "num_layers": 3, "dropout": 0.3, "output_size": 1}),
+    # ("SimpleRNN", SimpleRNN, {"input_size": 1, "hidden_size": lstm_hidden_size, "num_layers": 3, "dropout": 0.3, "output_size": 1}),
+    # ("TimeSeriesTransformer", TimeSeriesTransformer, {"input_size": 1, "d_model": 64, "nhead": 8, "num_layers": 3, "dim_feedforward": 128, "dropout": 0.1, "output_size": 1}),
     ("xLSTM", xLSTMTimeSeriesModel, None)  # xLSTM requires additional configuration
 ]
 
@@ -65,11 +66,11 @@ for model_name, model_class, model_kwargs in models:
         model_kwargs = {"xlstm_stack": xlstm_stack, "output_size": output_size, "embedding_dim": embedding_dim}
 
     # Check for existing model
-    model = load_existing_model(model_path, device, model_class, model_kwargs)
+    model = load_existing_model(model_path, device, model_class, model_kwargs) if not retrain_mode else None
     y_true = test['y'].values.reshape(num_series, horizon)
 
     if model is None:
-        print(f"No existing model found. Training a new {model_name}...")
+        print(f"No existing model found or retrain mode was enabled. Training a new {model_name}...")
         model = model_class(**model_kwargs).to(device)
 
         # Train and evaluate
@@ -86,6 +87,8 @@ for model_name, model_class, model_kwargs in models:
             test,
             criterion
         )
+
+        print(f"Training completed in {duration:.2f} seconds")
 
         # Save model
         torch.save(model.state_dict(), model_path)

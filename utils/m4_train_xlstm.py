@@ -38,25 +38,25 @@ def get_stack_cfg(embedding_dim, look_back, device, fix_inits_bool=False):
                 embedding_dim=embedding_dim,
             )
         ),
-        slstm_block=sLSTMBlockConfig(
-            slstm=sLSTMLayerConfig(
-                backend='vanilla',
-                num_heads=4,  # More heads for better focus on features
-                conv1d_kernel_size=10,  # Larger convolution for feature aggregation
-                bias_init="powerlaw_blockdependent",
-                embedding_dim=embedding_dim
-            ),
-            feedforward=FeedForwardConfig(
-                proj_factor=5.0,  # Larger projection factor for expanded representations
-                act_fn="gelu",  # Smooth activation for stability
-                dropout=0.3,
-                embedding_dim=embedding_dim
-            ),
-        ),
+        # slstm_block=sLSTMBlockConfig(
+        #     slstm=sLSTMLayerConfig(
+        #         backend='vanilla',
+        #         num_heads=2,  # More heads for better focus on features
+        #         conv1d_kernel_size=10,  # Larger convolution for feature aggregation
+        #         bias_init="powerlaw_blockdependent",
+        #         embedding_dim=embedding_dim
+        #     ),
+        #     feedforward=FeedForwardConfig(
+        #         proj_factor=3.0,  # Larger projection factor for expanded representations
+        #         act_fn="gelu",  # Smooth activation for stability
+        #         dropout=0.3,
+        #         embedding_dim=embedding_dim
+        #     ),
+        # ),
         context_length=look_back + 1,
-        num_blocks=8,  # Increased blocks for deeper model
+        num_blocks=4,  # Increased blocks for deeper model
         embedding_dim=embedding_dim,
-        slstm_at=[0, 2, 4, 6]  # Strategically placed sLSTM blocks
+        # slstm_at=[0]  # Strategically placed sLSTM blocks
     )
 
     stack = xLSTMBlockStack(cfg).to(device)
