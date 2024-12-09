@@ -18,14 +18,3 @@ def create_test_windows(df, look_back):
         series = group["y"].values[-look_back:]  # Only use look-back window
         X_test.append(series)
     return np.array(X_test)
-
-
-# Recursive prediction function for multi-step prediction
-def recursive_predict(model, X_input, horizon):
-    predictions = []
-    X_current = X_input
-    for _ in range(horizon):
-        y_pred = model.predict(X_current)
-        predictions.append(y_pred)
-        X_current = np.concatenate((X_current[:, 1:], y_pred.reshape(-1, 1)), axis=1)
-    return np.hstack(predictions)

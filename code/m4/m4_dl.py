@@ -12,7 +12,7 @@ from datasetsforecast.m4 import M4Evaluation
 
 # ===== Parameters =====
 retrain_mode = True
-freq = 'Hourly'  # or 'Daily'
+freq = 'Daily'  # or 'Hourly'
 num_series = 414
 embedding_dim = 64
 epochs = 10
@@ -47,9 +47,9 @@ y_train = y_train.to(device)
 
 # ===== Models and Configurations =====
 models = [
-    # ("ComplexLSTM", ComplexLSTM, {"input_size": 1, "hidden_size": lstm_hidden_size, "num_layers": 3, "dropout": 0.3, "output_size": 1}),
-    # ("SimpleRNN", SimpleRNN, {"input_size": 1, "hidden_size": lstm_hidden_size, "num_layers": 3, "dropout": 0.3, "output_size": 1}),
-    # ("TimeSeriesTransformer", TimeSeriesTransformer, {"input_size": 1, "d_model": 64, "nhead": 8, "num_layers": 3, "dim_feedforward": 128, "dropout": 0.1, "output_size": 1}),
+    ("ComplexLSTM", ComplexLSTM, {"input_size": 1, "hidden_size": lstm_hidden_size, "num_layers": 3, "dropout": 0.3, "output_size": 1}),
+    ("SimpleRNN", SimpleRNN, {"input_size": 1, "hidden_size": lstm_hidden_size, "num_layers": 3, "dropout": 0.3, "output_size": 1}),
+    ("TimeSeriesTransformer", TimeSeriesTransformer, {"input_size": 1, "d_model": 64, "nhead": 8, "num_layers": 3, "dim_feedforward": 128, "dropout": 0.1, "output_size": 1}),
     ("xLSTM", xLSTMTimeSeriesModel, None)  # xLSTM requires additional configuration
 ]
 

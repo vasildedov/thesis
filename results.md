@@ -157,3 +157,5 @@ sMAPE 20.42
 -> head doesn't affect too much
 
 let's try 10 epochs
+Training completed in 2901.36 seconds
+sMAPE 16.33

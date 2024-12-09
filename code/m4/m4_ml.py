@@ -1,10 +1,10 @@
-import pandas as pd
-import numpy as np
-from sklearn.preprocessing import StandardScaler
+import time
+import json
 from datasetsforecast.m4 import M4, M4Info, M4Evaluation
 from utils.m4_preprocess import train_test_split, truncate_series
-from utils.m4_preprocess_ml import create_train_windows, create_test_windows, recursive_predict
-from utils.models_ml import LGBMModel, XGBModel, CatBoostModel
+from utils.m4_preprocess_ml import create_train_windows, create_test_windows
+from utils.m4_train_ml import train_and_save_model, ensemble_predict
+from utils.models_ml import LGBMModel, XGBModel
 
 # Choose the frequency
 freq = 'Daily'  # or 'Hourly'
@@ -28,39 +28,32 @@ if freq == 'Daily':
 
 # Generate windows for training
 X_train, y_train = create_train_windows(train, look_back, horizon)
-
-# Instantiate and train the models
-lgbm_model = LGBMModel()
-lgbm_model.fit(X_train, y_train)
-
-xgb_model = XGBModel()
-xgb_model.fit(X_train, y_train)
-
-# Adjust CatBoost parameters based on frequency
-if freq == 'Daily':
-    catboost_model = CatBoostModel(hyper_parametrize=False)
-else:
-    catboost_model = CatBoostModel()
-catboost_model.fit(X_train, y_train)
-
 # Prepare the test window (last 'look_back' points of each series)
 X_test = create_test_windows(train, look_back)
 
-# Predict on the test set
-y_pred_lgbm = recursive_predict(lgbm_model, X_test, horizon)
-y_pred_xgb = recursive_predict(xgb_model, X_test, horizon)
-y_pred_cb = recursive_predict(catboost_model, X_test, horizon)
+# ===== Models =====
+# LightGBM
+lgbm_model = LGBMModel()
+y_pred_lgbm, eval_lgbm = train_and_save_model(lgbm_model, "LGBM", X_train, y_train, X_test, horizon, freq, look_back)
 
-# Ensemble prediction using averaging
-def ensemble_predict(models, X_input, horizon):
-    model_predictions = [recursive_predict(model, X_input, horizon) for model in models]
-    return np.mean(model_predictions, axis=0)
+# XGBoost
+xgb_model = XGBModel()
+y_pred_xgb, eval_xgb = train_and_save_model(xgb_model, "XGB", X_train, y_train, X_test, horizon, freq, look_back)
 
-y_pred_ens = ensemble_predict([lgbm_model, xgb_model, catboost_model], X_test, horizon)
+# Ensemble predictions
+y_pred_ens = ensemble_predict([lgbm_model, xgb_model], X_test, horizon)
+eval_ensemble = M4Evaluation.evaluate('data', freq, y_pred_ens)
 
-
-# Evaluate and print results
-print('LGBM evaluation:\n', M4Evaluation.evaluate('data', freq, y_pred_lgbm))
-print('XGB evaluation:\n', M4Evaluation.evaluate('data', freq, y_pred_xgb))
-print('CatBoost evaluation:\n', M4Evaluation.evaluate('data', freq, y_pred_cb))
-print('Ensemble evaluation:\n', M4Evaluation.evaluate('data', freq, y_pred_ens))
+# Save ensemble metadata
+ensemble_metadata_path = f"models/ensemble_{freq.lower()}_metadata.json"
+ensemble_metadata = {
+    "model_name": "Ensemble",
+    "frequency": freq.lower(),
+    "look_back": look_back,
+    "horizon": horizon,
+    "SMAPE": eval_ensemble['SMAPE'][0],
+    "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+}
+with open(ensemble_metadata_path, "w") as f:
+    json.dump(ensemble_metadata, f, indent=4)
+print(f"Ensemble metadata saved to {ensemble_metadata_path}")

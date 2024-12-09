@@ -5,7 +5,6 @@ from sklearn.model_selection import GridSearchCV
 import catboost as cb
 
 
-# LightGBM model setup
 class LGBMModel:
     def __init__(self, hyper_parametrize=False):
         self.model = lgb.LGBMRegressor()
