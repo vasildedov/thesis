@@ -11,9 +11,9 @@ from utils.helper import load_existing_model, save_metadata, calculate_smape
 from datasetsforecast.m4 import M4Evaluation
 
 # ===== Parameters =====
-retrain_mode = True
+retrain_mode = False
+full_load = True
 freq = 'Daily'  # or 'Hourly'
-num_series = 414
 embedding_dim = 64
 epochs = 10
 batch_size = 128
@@ -23,9 +23,9 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Frequency-specific parameters
 if freq == 'Daily':
-    look_back, horizon, max_length, lstm_hidden_size = 30, 14, 200, 50
+    look_back, horizon, max_length, num_series, lstm_hidden_size = 30, 14, 200, 4227 if full_load else 10, 50
 elif freq == 'Hourly':
-    look_back, horizon, max_length, lstm_hidden_size = 120, 48, None, 100
+    look_back, horizon, max_length, num_series, lstm_hidden_size = 120, 48, None, 414 if full_load else 10, 100
 else:
     raise ValueError("Unsupported frequency. Choose 'Daily' or 'Hourly'.")
 
@@ -110,8 +110,7 @@ for model_name, model_class, model_kwargs in models:
             "model_path": model_path,
             "time_to_train": round(duration, 2),
             "timestamp": datetime.now().isoformat(),
-            "num_series": num_series,
-            "series": filtered_series.tolist()
+            "num_series": num_series
         }
         save_metadata(metadata, metadata_path)
         print(f"{model_name} Metadata saved to {metadata_path}")

@@ -3,11 +3,19 @@ import numpy as np
 from sklearn.preprocessing import StandardScaler
 from datasetsforecast.m4 import M4, M4Info, M4Evaluation
 from utils.m4_preprocess import train_test_split, truncate_series
-from statsmodels.tsa.statespace.sarimax import SARIMAX
+from statsmodels.tsa.statespace.sarimax import SARIMAX, SARIMAXResults
 from joblib import Parallel, delayed
+import os
+import time
+import json
+from datetime import datetime
+import warnings
+warnings.filterwarnings("ignore")
 
 # Choose the frequency
-freq = 'Hourly'  # or 'Daily'
+freq = 'Daily'  # or 'Hourly'
+# Model type can be 'ARIMA' or 'SARIMA'
+model_type = 'SARIMA'
 
 # Set parameters based on frequency
 if freq == 'Daily':
@@ -25,18 +33,66 @@ else:
 
 # Load data
 train, test = train_test_split(freq)
-
 # Truncate series if necessary
 if max_length is not None:
     train = truncate_series(train, max_length)
 
-def train_and_forecast(series, model_type, order, seasonal_order, horizon):
-    fitted_model = train_arima_model(series, model_type=model_type, order=order, seasonal_order=seasonal_order)
+# Define the folder to save all models
+model_folder = f"models/stats_{freq.lower()}/"
+os.makedirs(model_folder, exist_ok=True)
+
+
+
+def train_and_forecast(series, unique_id, model_type, order, seasonal_order, horizon):
+    """Train the model and forecast, saving/loading models with parameter validation."""
+    model_path = os.path.join(model_folder, f"{model_type.lower()}_{unique_id.lower()}.json")
+
+    # Ensure the series is not empty
+    if series.empty:
+        raise ValueError(f"Time series data for {unique_id} is empty. Cannot train or forecast.")
+
+    if os.path.exists(model_path):
+        print(f"Loading existing model for {unique_id}...")
+        with open(model_path, "r") as f:
+            model_data = json.load(f)
+
+        model = SARIMAX(
+            series,
+            order=tuple(model_data["order"]),
+            seasonal_order=tuple(model_data["seasonal_order"]),
+            enforce_stationarity=False,
+            enforce_invertibility=False
+        )
+        expected_length = model.k_params  # Expected number of parameters
+        params = np.array(model_data["params"])
+
+        if len(params) != expected_length:
+            print(f"Parameter mismatch for {unique_id}. Expected {expected_length}, got {len(params)}.")
+            print(f"Re-training model for {unique_id}...")
+            os.remove(model_path)  # Delete malformed file
+            return train_and_forecast(series, unique_id, model_type, order, seasonal_order, horizon)
+
+        # Apply the saved parameters
+        fitted_model = model.filter(params)
+    else:
+        print(f"Training new model for {unique_id}...")
+        fitted_model = train_arima_model(series, model_type=model_type, order=order, seasonal_order=seasonal_order)
+
+        model_data = {
+            "params": fitted_model.params.tolist(),  # Save model parameters
+            "order": order,
+            "seasonal_order": seasonal_order
+        }
+        with open(model_path, "w") as f:
+            json.dump(model_data, f)
+        print(f"Model for {unique_id} saved to {model_path}.")
+
     forecast = recursive_predict_arima(fitted_model, steps=horizon)
     return forecast
 
+
 def train_arima_model(series, model_type='ARIMA', order=(1, 1, 1), seasonal_order=(0, 0, 0, 0)):
-    if model_type == 'SARIMA':
+    if model_type == 'ARIMA':
         model = SARIMAX(
             series,
             order=order,
@@ -54,17 +110,20 @@ def train_arima_model(series, model_type='ARIMA', order=(1, 1, 1), seasonal_orde
     fitted_model = model.fit(disp=False, method='powell')
     return fitted_model
 
+
 def recursive_predict_arima(fitted_model, steps):
     forecast = fitted_model.forecast(steps=steps)
     return forecast
 
-# Model type can be 'ARIMA' or 'SARIMA'
-model_type = 'ARIMA'  # Change as desired
+
+# Using parallel processing to speed up training and forecasting
+start_overall_time = time.time()
 
 # Using parallel processing to speed up training and forecasting
 forecasts = Parallel(n_jobs=-1)(
     delayed(train_and_forecast)(
         train[train['unique_id'] == uid]['y'],
+        unique_id=uid,
         model_type=model_type,
         order=order,
         seasonal_order=seasonal_order,
@@ -73,6 +132,8 @@ forecasts = Parallel(n_jobs=-1)(
     for uid in train['unique_id'].unique()
 )
 
+end_overall_time = time.time()
+
 # Convert forecasts to numpy array
 y_pred = np.array(forecasts)
 
@@ -80,4 +141,21 @@ y_pred = np.array(forecasts)
 y_true = test['y'].values.reshape(-1, horizon)
 
 # Evaluate forecasts
-print('Evaluation:\n', M4Evaluation.evaluate('data', freq, y_pred))
+evaluation = M4Evaluation.evaluate('data', freq, y_pred)
+print('Evaluation:\n', evaluation)
+
+# Save evaluation metadata
+metadata_path = os.path.join(model_folder, f"{model_type.lower()}_metadata.json")
+metadata = {
+    "model_name": model_type,
+    "frequency": freq.lower(),
+    "order": order,
+    "seasonal_order": seasonal_order,
+    "horizon": horizon,
+    "SMAPE": evaluation['SMAPE'][0],
+    "time_to_train": round(end_overall_time-start_overall_time, 2),
+    "timestamp": datetime.now().isoformat()
+}
+with open(metadata_path, "w") as f:
+    json.dump(metadata, f, indent=4)
+print(f"Metadata saved to {metadata_path}")
