@@ -9,7 +9,7 @@ def train_and_save_model(model, model_name, X_train, y_train, X_test, horizon, f
     """
     Train a model, save it, and save its metadata.
     """
-    model_path = f'models/ml_{freq.lower()}/{model_name.lower()}_{freq.lower()}.txt'
+    model_path = f'models/ml_{freq.lower()}/{model_name.lower()}.txt'
     metadata_path = model_path.replace('.txt', '_metadata.json')
 
     # Check if the model already exists
