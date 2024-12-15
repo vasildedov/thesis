@@ -11,23 +11,30 @@ from utils.helper import load_existing_model, save_metadata, calculate_smape
 from datasetsforecast.m4 import M4Evaluation
 
 # ===== Parameters =====
-retrain_mode = False
+retrain_mode = True
 full_load = True
-freq = 'Daily'  # or 'Hourly'
+freq = 'Yearly'
 embedding_dim = 64
 epochs = 10
-batch_size = 128
+batch_size = 32
 criterion = nn.MSELoss()  # Can use nn.SmoothL1Loss(beta=1.0) as alternative
 output_size = 1
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Frequency-specific parameters
-if freq == 'Daily':
-    look_back, horizon, max_length, num_series, lstm_hidden_size = 30, 14, 200, 4227 if full_load else 10, 50
+if freq == 'Yearly':
+    look_back, horizon, max_length, num_series, lstm_hidden_size = 12, 6, None, 23000 if full_load else 10, 16
+elif freq == 'Quarterly':
+    look_back, horizon, max_length, num_series, lstm_hidden_size = 16, 8, None, 24000 if full_load else 10, 50
+elif freq == 'Monthly':
+    look_back, horizon, max_length, num_series, lstm_hidden_size = 36, 18, 120, 48000 if full_load else 10, 50
+elif freq == 'Weekly':
+    look_back, horizon, max_length, num_series, lstm_hidden_size = 26, 13, 260, 359 if full_load else 10, 64
+elif freq == 'Daily':
+    look_back, horizon, max_length, num_series, lstm_hidden_size = 28, 14, 200, 4227 if full_load else 10, 50
 elif freq == 'Hourly':
-    look_back, horizon, max_length, num_series, lstm_hidden_size = 120, 48, None, 414 if full_load else 10, 100
+    look_back, horizon, max_length, num_series, lstm_hidden_size = 96, 48, None, 414 if full_load else 10, 100
 else:
-    raise ValueError("Unsupported frequency. Choose 'Daily' or 'Hourly'.")
+    raise ValueError("Unsupported frequency. Choose from 'Yearly', 'Quarterly', 'Monthly', 'Daily', or 'Hourly'.")
 
 # ===== Load Data =====
 train, test = train_test_split(freq)
@@ -58,7 +65,7 @@ for model_name, model_class, model_kwargs in models:
     print(f"\nTraining and Evaluating {model_name}...")
 
     # Model-specific configurations
-    model_path = f"models/{model_name.lower()}_{freq.lower()}_{num_series}_series.pth"
+    model_path = f"models/dl_{freq.lower()}/{model_name.lower()}_{freq.lower()}_{num_series}_series.pth"
     metadata_path = model_path.replace(".pth", "_metadata.json")
 
     if model_name == "xLSTM":

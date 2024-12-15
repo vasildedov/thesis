@@ -5,15 +5,15 @@ import numpy as np
 from datasetsforecast.m4 import M4, M4Info, M4Evaluation
 
 
-def train_and_save_model(model, model_name, X_train, y_train, X_test, horizon, freq, look_back):
+def train_and_save_model(model, model_name, X_train, y_train, X_test, horizon, freq, look_back, retrain=True):
     """
     Train a model, save it, and save its metadata.
     """
-    model_path = f'models/{model_name.lower()}_{freq.lower()}.txt'
+    model_path = f'models/ml_{freq.lower()}/{model_name.lower()}_{freq.lower()}.txt'
     metadata_path = model_path.replace('.txt', '_metadata.json')
 
     # Check if the model already exists
-    if os.path.exists(model_path) and model_name != "LGBM":
+    if os.path.exists(model_path) and model_name != "LGBM" and not retrain:
         print(f"{model_name} model found at {model_path}. Loading existing model...")
         if model_name == "XGB":
             model.model.load_model(model_path)
@@ -47,6 +47,7 @@ def train_and_save_model(model, model_name, X_train, y_train, X_test, horizon, f
     # Predict and evaluate
     y_pred = recursive_predict(model, X_test, horizon)
     evaluation = M4Evaluation.evaluate('data', freq, y_pred)
+    print("SMAPE:", evaluation['SMAPE'][0])
 
     # Save metadata
     metadata = {
