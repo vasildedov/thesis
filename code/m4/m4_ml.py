@@ -52,7 +52,7 @@ y_pred_ens = ensemble_predict([lgbm_model, xgb_model], X_test, horizon)
 eval_ensemble = M4Evaluation.evaluate('data', freq, y_pred_ens)
 
 # Save ensemble metadata
-ensemble_metadata_path = f"models/ensemble_{freq.lower()}_metadata.json"
+ensemble_metadata_path = f"models/ml_{freq.lower()}/ensemble_metadata.json"
 ensemble_metadata = {
     "model_name": "Ensemble",
     "frequency": freq.lower(),

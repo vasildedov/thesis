@@ -13,10 +13,10 @@ from datasetsforecast.m4 import M4Evaluation
 # ===== Parameters =====
 retrain_mode = True
 full_load = True
-freq = 'Yearly'
+freq = 'Quarterly'
 embedding_dim = 64
 epochs = 10
-batch_size = 32
+batch_size = 256
 criterion = nn.MSELoss()  # Can use nn.SmoothL1Loss(beta=1.0) as alternative
 output_size = 1
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -57,7 +57,7 @@ models = [
     ("ComplexLSTM", ComplexLSTM, {"input_size": 1, "hidden_size": lstm_hidden_size, "num_layers": 3, "dropout": 0.3, "output_size": 1}),
     ("SimpleRNN", SimpleRNN, {"input_size": 1, "hidden_size": lstm_hidden_size, "num_layers": 3, "dropout": 0.3, "output_size": 1}),
     ("TimeSeriesTransformer", TimeSeriesTransformer, {"input_size": 1, "d_model": 64, "nhead": 8, "num_layers": 3, "dim_feedforward": 128, "dropout": 0.1, "output_size": 1}),
-    ("xLSTM", xLSTMTimeSeriesModel, None)  # xLSTM requires additional configuration
+    # ("xLSTM", xLSTMTimeSeriesModel, None)  # xLSTM requires additional configuration
 ]
 
 # ===== Train and Evaluate Models =====
@@ -65,7 +65,10 @@ for model_name, model_class, model_kwargs in models:
     print(f"\nTraining and Evaluating {model_name}...")
 
     # Model-specific configurations
-    model_path = f"models/dl_{freq.lower()}/{model_name.lower()}_{freq.lower()}_{num_series}_series.pth"
+    if full_load:
+        model_path = f"models/dl_{freq.lower()}/{model_name.lower()}.pth"
+    else:
+        model_path = f"models/dl_{freq.lower()}/{model_name.lower()}_{num_series}_series.pth"
     metadata_path = model_path.replace(".pth", "_metadata.json")
 
     if model_name == "xLSTM":
