@@ -4,59 +4,54 @@ from sklearn.preprocessing import StandardScaler
 import time
 
 
-def recursive_predict(model, X_input, horizon, device, scalers, series_ids=None, batch_size=None):
+def predict(model, X_input, horizon, device, scalers, series_ids=None, batch_size=None, direct=False):
     model.eval()
     num_series = X_input.size(0)
     predictions_rescaled = []
 
     with torch.no_grad():
-        for start_idx in range(0, num_series, batch_size):
+        for start_idx in range(0, num_series, batch_size or num_series):
             # Select the batch
             end_idx = min(start_idx + batch_size, num_series)
-            X_batch = X_input[start_idx:end_idx].clone().to(device)  # Shape: [batch_size, seq_len, input_size]
-            batch_series_ids = series_ids[start_idx:end_idx]  # Corresponding series IDs for the batch
+            X_batch = X_input[start_idx:end_idx].clone().to(device)  # [batch_size, look_back, input_size]
+            batch_series_ids = series_ids[start_idx:end_idx]
 
-            # Perform recursive forecasting for the batch
-            batch_predictions = []
-            for _ in range(horizon):
-                # Model output (assumed to be [batch_size] or [batch_size, 1])
-                y_pred = model(X_batch)
+            if direct:
+                # Direct multi-step prediction
+                batch_predictions = model(X_batch).cpu().numpy()  # Shape: [batch_size, horizon]
+            else:
+                # Recursive forecasting
+                batch_predictions = []
+                for _ in range(horizon):
+                    y_pred = model(X_batch)
 
-                # Ensure y_pred has shape [batch_size, 1, input_size]
-                if y_pred.dim() == 1:  # Flattened output [batch_size]
-                    y_pred = y_pred.unsqueeze(-1).unsqueeze(-1)  # [batch_size, 1, 1]
-                elif y_pred.dim() == 2:  # [batch_size, 1]
-                    y_pred = y_pred.unsqueeze(-1)  # [batch_size, 1, 1]
+                    if y_pred.dim() == 1:  # Flattened output [batch_size]
+                        y_pred = y_pred.unsqueeze(-1).unsqueeze(-1)  # [batch_size, 1, 1]
+                    elif y_pred.dim() == 2:  # [batch_size, 1]
+                        y_pred = y_pred.unsqueeze(-1)  # [batch_size, 1, 1]
 
-                # Slide the input window forward
-                X_batch = torch.cat((X_batch[:, 1:, :], y_pred), dim=1)  # Maintain sequence length
-                batch_predictions.append(y_pred.cpu().numpy())  # Store predictions
+                    # Slide the input window forward
+                    X_batch = torch.cat((X_batch[:, 1:, :], y_pred), dim=1)
+                    batch_predictions.append(y_pred.cpu().numpy())
 
-            # Concatenate predictions for the batch and reverse scaling
-            batch_predictions = np.concatenate(batch_predictions, axis=1)  # Shape: [batch_size, horizon]
+                batch_predictions = np.concatenate(batch_predictions, axis=1)  # [batch_size, horizon]
+
+            # Reverse scaling for each series
             for i, series_id in enumerate(batch_series_ids):
-                scaler = scalers[series_id]  # Use the correct scaler based on series_id
+                scaler = scalers[series_id]
                 pred_scaled = scaler.inverse_transform(batch_predictions[i].reshape(-1, 1)).flatten()
                 predictions_rescaled.append(pred_scaled)
 
-    return np.array(predictions_rescaled).reshape(num_series, horizon)  # Shape: [num_series, horizon]
+    try:
+        return np.array(predictions_rescaled).reshape(num_series, horizon)  # [num_series, horizon]
+    except ValueError as e:
+        print(f"Error reshaping predictions. Expected shape: ({num_series}, {horizon}), "
+              f"but got {len(predictions_rescaled)} elements.")
+        raise e
+
 
 def train_model(model, X_train, y_train, batch_size, optimizer, criterion, epochs,
-                device=None, clip_grad_norm=None):
-    """
-    Train a neural network model with support for gradient clipping and dynamic input shape handling.
-
-    Args:
-        model (torch.nn.Module): The model to train.
-        X_train (torch.Tensor): Training inputs.
-        y_train (torch.Tensor): Training targets.
-        batch_size (int): Batch size for training.
-        optimizer (torch.optim.Optimizer): Optimizer for training.
-        criterion (torch.nn.Module): Loss function.
-        epochs (int): Number of training epochs.
-        device (torch.device, optional): Device to train on ('cpu' or 'cuda'). Defaults to None (no transfer).
-        clip_grad_norm (float, optional): Max norm for gradient clipping. Defaults to None (no clipping).
-    """
+                device=None, clip_grad_norm=None, direct=False):
     if device:
         model.to(device)
         X_train = X_train.to(device)
@@ -74,13 +69,18 @@ def train_model(model, X_train, y_train, batch_size, optimizer, criterion, epoch
 
             optimizer.zero_grad()
 
-            # Adjust input dimensions for RNNs/Transformers if necessary
-            if batch_X.dim() == 2:  # If input is [batch_size, seq_len], add feature dimension
-                batch_X = batch_X.unsqueeze(-1)  # Shape becomes [batch_size, seq_len, 1]
+            if direct:
+                # Direct multi-step prediction logic
+                outputs = model(batch_X)  # Shape: [batch_size, horizon]
+                loss = criterion(outputs, batch_y)  # Loss over the entire horizon
+            else:
+                # Adjust input dimensions for RNNs/Transformers if necessary
+                if batch_X.dim() == 2:  # If input is [batch_size, seq_len], add feature dimension
+                    batch_X = batch_X.unsqueeze(-1)  # Shape becomes [batch_size, seq_len, 1]
 
-            outputs = model(batch_X).squeeze(-1)  # Ensure output matches expected shape [batch_size]
+                outputs = model(batch_X).squeeze(-1)  # Ensure output matches expected shape [batch_size]
 
-            loss = criterion(outputs, batch_y)
+                loss = criterion(outputs, batch_y)
             if torch.isnan(loss):
                 print("Loss is NaN. Investigate inputs and outputs.")
                 return
@@ -100,34 +100,9 @@ def train_model(model, X_train, y_train, batch_size, optimizer, criterion, epoch
         # log_weights(model)
 
 
-def train_and_predict(
-    device, model_class_or_instance, X_train, y_train, X_test, scalers, epochs,
-    batch_size, horizon, test, criterion, optimizer_class=None, learning_rate=1e-3,
-    clip_grad_norm=None, perform_sanity_checks=False
-):
-    """
-    Train a model and evaluate its performance with optional diagnostics.
-
-    Args:
-        device (torch.device): Device for computation.
-        model_class_or_instance (class or torch.nn.Module): Model class to instantiate or a pre-initialized model.
-        X_train (torch.Tensor): Training inputs.
-        y_train (torch.Tensor): Training targets.
-        X_test (torch.Tensor): Test inputs.
-        scalers (dict): Scalers for inverse transformation.
-        epochs (int): Number of epochs for training.
-        batch_size (int): Batch size for training.
-        horizon (int): Forecasting horizon.
-        test (pd.DataFrame): Test DataFrame.
-        criterion (torch.nn.Module): Loss function.
-        optimizer_class (torch.optim.Optimizer, optional): Optimizer class (default: AdamW).
-        learning_rate (float, optional): Learning rate for the optimizer.
-        clip_grad_norm (float, optional): Max norm for gradient clipping (default: None, no clipping).
-        perform_sanity_checks (bool, optional): Perform sanity checks on inputs and model (default: True).
-
-    Returns:
-        tuple: (Predicted values, Training time)
-    """
+def train_and_predict(device, model_class_or_instance, X_train, y_train, X_test, scalers, epochs, batch_size, horizon,
+                      test, criterion, optimizer_class=None, learning_rate=1e-3, clip_grad_norm=None,
+                      perform_sanity_checks=False, direct=False):
     # Initialize model
     if isinstance(model_class_or_instance, torch.nn.Module):
         model = model_class_or_instance.to(device)
@@ -146,10 +121,7 @@ def train_and_predict(
     start_time = time.time()
 
     # Train the model
-    train_model(
-        model, X_train, y_train, batch_size, optimizer, criterion, epochs,
-        device=device, clip_grad_norm=clip_grad_norm
-    )
+    train_model(model, X_train, y_train, batch_size, optimizer, criterion, epochs, device, clip_grad_norm, direct)
 
     # End timing
     end_time = time.time()
@@ -157,7 +129,8 @@ def train_and_predict(
     # Predict using recursive forecasting
     series_ids = test["unique_id"].unique()
     num_series = len(series_ids)
-    y_pred = recursive_predict(model, X_test, horizon, device, scalers, series_ids, 2500 if num_series>2500 else num_series)
+    y_pred = predict(model, X_test, horizon, device, scalers, series_ids, 2500 if num_series>2500 else num_series,
+                     direct)
     return y_pred, end_time - start_time
 
 

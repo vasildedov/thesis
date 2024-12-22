@@ -4,7 +4,7 @@ from sklearn.preprocessing import StandardScaler
 
 
 # Data Preprocessing: Create input/output windows with scaling and integer series identifier
-def create_train_windows(df, look_back, horizon=1):
+def create_train_windows(df, look_back, horizon=1, direct=False):
     """
     Create training windows for RNN and Transformer models.
 
@@ -29,12 +29,15 @@ def create_train_windows(df, look_back, horizon=1):
 
         for i in range(len(scaled_series) - look_back - horizon + 1):
             seq_x = scaled_series[i: i + look_back]
-            seq_y = scaled_series[i + look_back: i + look_back + horizon]  # Multi-step targets
+            if direct:
+                seq_y = scaled_series[i + look_back: i + look_back + horizon]  # Multi-step targets
+            else:
+                seq_y = scaled_series[i + look_back]  # single-step target
             X.append(seq_x)
             y.append(seq_y)
 
     X = torch.tensor(np.array(X), dtype=torch.float32)  # Shape: [samples, look_back]
-    y = torch.tensor(np.array(y), dtype=torch.float32)  # Shape: [samples, horizon]
+    y = torch.tensor(np.array(y), dtype=torch.float32)  # Shape: [samples]  or [samples, horizon] if multi-step targets
     return X, y, scalers
 
 

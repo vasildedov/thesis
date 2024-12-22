@@ -5,8 +5,10 @@ import math
 
 # Define a simple RNN model
 class SimpleRNN(nn.Module):
-    def __init__(self, input_size=1, hidden_size=50, num_layers=2, dropout=0.3, output_size=1):
+    def __init__(self, input_size=1, hidden_size=50, num_layers=2, dropout=0.3, output_size=69, direct=False):
         super(SimpleRNN, self).__init__()
+        self.direct = direct
+        self.output_size = output_size if self.direct else 1
         self.rnn = nn.RNN(input_size, hidden_size, num_layers, dropout=dropout, batch_first=True)
         self.fc = nn.Linear(hidden_size, output_size)
 
@@ -19,8 +21,10 @@ class SimpleRNN(nn.Module):
 
 # Define a more complex LSTM model
 class ComplexLSTM(nn.Module):
-    def __init__(self, input_size=1, hidden_size=100, num_layers=3, dropout=0.3, output_size=1):
+    def __init__(self, input_size=1, hidden_size=100, num_layers=3, dropout=0.3, output_size=69, direct=False):
         super(ComplexLSTM, self).__init__()
+        self.direct = direct
+        self.output_size = output_size if self.direct else 1
         self.lstm = nn.LSTM(input_size, hidden_size, num_layers, dropout=dropout, batch_first=True)
         self.fc = nn.Linear(hidden_size, output_size)
 
@@ -32,15 +36,17 @@ class ComplexLSTM(nn.Module):
 
 
 class TimeSeriesTransformer(nn.Module):
-    def __init__(self, input_size, d_model, nhead, num_layers, dim_feedforward, dropout, output_size):
+    def __init__(self, input_size, d_model, nhead, num_layers, dim_feedforward, dropout, output_size=69, direct=False):
         super(TimeSeriesTransformer, self).__init__()
+        self.direct = direct
+        self.output_size = output_size if self.direct else 1
         self.input_projection = nn.Linear(input_size, d_model)
         self.positional_encoding = PositionalEncoding(d_model, dropout)
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=d_model,
             nhead=nhead,
             dim_feedforward=dim_feedforward,
-            batch_first=True  # Set batch_first=True
+            batch_first=True
         )
         self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
         self.decoder = nn.Linear(d_model, output_size)
@@ -77,16 +83,16 @@ class PositionalEncoding(nn.Module):
 
 
 class xLSTMTimeSeriesModel(nn.Module):
-    def __init__(self, xlstm_stack, output_size, embedding_dim):
+    def __init__(self, xlstm_stack, output_size, embedding_dim, input_size, direct=False):
         super().__init__()
-        self.input_projection = nn.Linear(1, embedding_dim)  # Project input to embedding_dim
-        self.input_layer_norm = nn.LayerNorm(embedding_dim)
+        self.direct = direct
+        self.output_size = output_size if self.direct else 1
+        self.input_projection = nn.Linear(input_size, embedding_dim)  # Project input to embedding_dim
         self.xlstm_stack = xlstm_stack
         self.output_layer = nn.Linear(embedding_dim, output_size)
 
     def forward(self, x):
         x = self.input_projection(x)  # Expand input to embedding_dim
-        # x = self.input_layer_norm(x)
         x = self.xlstm_stack(x)
         x = x[:, -1, :]  # Select last timestep
         x = self.output_layer(x)
