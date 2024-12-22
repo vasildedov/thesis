@@ -17,7 +17,7 @@ torch.cuda.empty_cache()
 retrain_mode = False
 full_load = True
 direct = True  # direct or recursive prediction of horizon steps
-freq = 'Weekly'
+freq = 'Hourly'
 embedding_dim = 64
 epochs = 10
 batch_size = 256
@@ -25,22 +25,23 @@ criterion = nn.MSELoss()  # Can use nn.SmoothL1Loss(beta=1.0) as alternative
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 if freq == 'Yearly':
-    look_back, horizon, max_length, num_series, lstm_hidden_size = 12, 6, None, 23000 if full_load else 10, 16
+    max_length, num_series, lstm_hidden_size = None, 23000 if full_load else 10, 16
 elif freq == 'Quarterly':
-    look_back, horizon, max_length, num_series, lstm_hidden_size = 16, 8, None, 24000 if full_load else 10, 50
+    max_length, num_series, lstm_hidden_size = None, 24000 if full_load else 10, 50
 elif freq == 'Monthly':
-    look_back, horizon, max_length, num_series, lstm_hidden_size = 36, 18, 120, 48000 if full_load else 10, 50
+    max_length, num_series, lstm_hidden_size = 120, 48000 if full_load else 10, 50
 elif freq == 'Weekly':
-    look_back, horizon, max_length, num_series, lstm_hidden_size = 26, 13, 260, 359 if full_load else 10, 64
+    max_length, num_series, lstm_hidden_size = 260, 359 if full_load else 10, 64
 elif freq == 'Daily':
-    look_back, horizon, max_length, num_series, lstm_hidden_size = 28, 14, 200, 4227 if full_load else 10, 50
+    max_length, num_series, lstm_hidden_size = 200, 4227 if full_load else 10, 50
 elif freq == 'Hourly':
-    look_back, horizon, max_length, num_series, lstm_hidden_size = 96, 48, None, 414 if full_load else 10, 100
+    max_length, num_series, lstm_hidden_size = None, 414 if full_load else 10, 100
 else:
     raise ValueError("Unsupported frequency. Choose from 'Yearly', 'Quarterly', 'Monthly', 'Daily', or 'Hourly'.")
 
 # ===== Load Data =====
-train, test = train_test_split(freq)
+train, test, horizon = train_test_split(freq)
+look_back = 2*horizon
 filtered_series = train["unique_id"].unique()[:num_series]
 train = train[train["unique_id"].isin(filtered_series)]
 test = test[test["unique_id"].isin(filtered_series)]
@@ -68,7 +69,7 @@ for model_name, model_class, model_kwargs in models:
     print(f"\nTraining and Evaluating {model_name}...")
 
     # Define the folder to save all models
-    model_folder = f"models/dl_{freq.lower()}/"
+    model_folder = f"models/m4/dl_{freq.lower()}/"
     os.makedirs(model_folder, exist_ok=True)
 
     # Model-specific configurations

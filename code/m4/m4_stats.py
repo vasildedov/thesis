@@ -18,17 +18,17 @@ freq = 'Yearly'  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Weekly', 'Daily',
 model_type = 'SARIMA'
 
 if freq == 'Yearly':
-    order, seasonal_order, horizon, max_length = (2, 1, 1), (1, 1, 0, 12), 6, None
+    order, seasonal_order, max_length = (2, 1, 1), (1, 1, 0, 12), None
 elif freq == 'Quarterly':
-    order, seasonal_order, horizon, max_length = (4, 1, 1), (1, 1, 0, 4), 8, None
+    order, seasonal_order, max_length = (4, 1, 1), (1, 1, 0, 4), None
 elif freq == 'Monthly':
-    order, seasonal_order, horizon, max_length = (6, 1, 1), (1, 1, 0, 12), 18, 120
+    order, seasonal_order, max_length = (6, 1, 1), (1, 1, 0, 12), 120
 elif freq == 'Weekly':
-    order, seasonal_order, horizon, max_length = (5, 1, 1), (1, 1, 0, 52), 13, 260
+    order, seasonal_order, max_length = (5, 1, 1), (1, 1, 0, 52), 260
 elif freq == 'Daily':
-    order, seasonal_order, horizon, max_length = (5, 1, 1), (1, 1, 0, 7), 14, 200
+    order, seasonal_order, max_length = (5, 1, 1), (1, 1, 0, 7), 200
 elif freq == 'Hourly':
-    order, seasonal_order, horizon, max_length = (24, 1, 1), (0, 1, 1, 24), 48, None
+    order, seasonal_order, max_length = (24, 1, 1), (0, 1, 1, 24), None
 else:
     raise ValueError("Unsupported frequency. Choose a valid M4 frequency.")
 
@@ -36,13 +36,13 @@ if model_type == 'ARIMA':
     seasonal_order = None
 
 # Load data
-train, test = train_test_split(freq)
+train, test, horizon = train_test_split(freq)
 # Truncate series if necessary
 if max_length is not None:
     train = truncate_series(train, max_length)
 
 # Define the folder to save all models
-model_folder = f"models/stats_{freq.lower()}/"
+model_folder = f"models/m4/stats_{freq.lower()}/"
 os.makedirs(model_folder, exist_ok=True)
 
 

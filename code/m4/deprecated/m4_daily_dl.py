@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 import pandas as pd
-from utils.m4_preprocess_ml import train_test_split, truncate_series
+from utils.preprocess_ml import train_test_split, truncate_series
 from datasetsforecast.m4 import M4, M4Info, M4Evaluation
 from utils.models_ml import calculate_smape
 from utils.m4_preprocess_dl import create_rnn_windows, create_test_windows, recursive_predict_rnn, rnn_train

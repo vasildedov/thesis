@@ -9,7 +9,7 @@ def train_test_split(group):
     horizon = M4Info[group].horizon
     valid = df.groupby('unique_id').tail(horizon)
     train = df.drop(valid.index)
-    return train, valid
+    return train, valid, horizon
 
 # Function to truncate series to a maximum length
 def truncate_series(df, max_length=300):

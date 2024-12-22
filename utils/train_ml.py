@@ -2,14 +2,19 @@ import json
 import os
 import time
 import numpy as np
-from datasetsforecast.m4 import M4, M4Info, M4Evaluation
+from datasetsforecast.m4 import M4Evaluation
+from utils.helper import calculate_smape
 
 
-def train_and_save_model(model, model_name, X_train, y_train, X_test, horizon, freq, look_back, retrain=True):
+def train_and_save_model(model, model_name, X_train, y_train, X_test, y_test, horizon, freq, look_back,
+                         retrain=True, dataset='m4'):
     """
     Train a model, save it, and save its metadata.
     """
-    model_path = f'models/ml_{freq.lower()}/{model_name.lower()}.txt'
+    model_folder = f'models/{dataset}/ml_{freq.lower()}/'
+    os.makedirs(model_folder, exist_ok=True)
+
+    model_path = f'{model_folder}{model_name.lower()}.txt'
     metadata_path = model_path.replace('.txt', '_metadata.json')
 
     # Check if the model already exists
@@ -23,9 +28,13 @@ def train_and_save_model(model, model_name, X_train, y_train, X_test, horizon, f
 
         # Predict and evaluate using the existing model
         y_pred = recursive_predict(model, X_test, horizon)
-        evaluation_df = M4Evaluation.evaluate('data', freq, y_pred)
-        evaluation = evaluation_df.to_dict()
-        print(f"{model_name} evaluation completed for loaded model.")
+        if dataset=='m4':
+            evaluation_df = M4Evaluation.evaluate('data', freq, y_pred)
+            evaluation = evaluation_df.to_dict()
+            print(f"{model_name} evaluation completed for loaded model.")
+        else:
+            evaluation = {}
+            evaluation['SMAPE'] = calculate_smape(y_test, y_pred)
         return y_pred, evaluation
     else:
         print(f"No existing {model_name} model found. Training a new model...")
@@ -46,8 +55,15 @@ def train_and_save_model(model, model_name, X_train, y_train, X_test, horizon, f
 
     # Predict and evaluate
     y_pred = recursive_predict(model, X_test, horizon)
-    evaluation = M4Evaluation.evaluate('data', freq, y_pred)
-    print("SMAPE:", evaluation['SMAPE'][0])
+    if dataset == 'm4':
+        evaluation_df = M4Evaluation.evaluate('data', freq, y_pred)
+        evaluation = evaluation_df.to_dict()
+        print(f"{model_name} evaluation completed for loaded model.")
+        print("SMAPE:", evaluation['SMAPE'][0])
+    else:
+        evaluation = {}
+        evaluation['SMAPE'] = calculate_smape(y_test, y_pred)
+        print("SMAPE:", evaluation['SMAPE'])
 
     # Save metadata
     metadata = {
@@ -56,7 +72,7 @@ def train_and_save_model(model, model_name, X_train, y_train, X_test, horizon, f
         "look_back": look_back,
         "horizon": horizon,
         "time_to_train": round(end_time - start_time, 2),
-        "SMAPE": evaluation['SMAPE'][0],
+        "SMAPE": evaluation['SMAPE'][0] if dataset=='m4' else evaluation['SMAPE'],
         "model_path": model_path,
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
     }
