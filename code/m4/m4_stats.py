@@ -13,23 +13,27 @@ import warnings
 warnings.filterwarnings("ignore")
 
 # Choose the frequency
-freq = 'Daily'  # or 'Hourly'
+freq = 'Quarterly'  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Weekly', 'Daily', 'Hourly'
 # Model type can be 'ARIMA' or 'SARIMA'
-model_type = 'SARIMA'
+model_type = 'ARIMA'
 
-# Set parameters based on frequency
-if freq == 'Daily':
-    order = (5, 1, 1)
-    seasonal_order = (1, 1, 0, 7)  # Weekly seasonality
-    horizon = 14
-    max_length = 200  # Truncate long series to speed up training
+if freq == 'Yearly':
+    order, seasonal_order, horizon, max_length = (2, 1, 1), (1, 1, 0, 12), 6, None
+elif freq == 'Quarterly':
+    order, seasonal_order, horizon, max_length = (4, 1, 1), (1, 1, 0, 4), 8, None
+elif freq == 'Monthly':
+    order, seasonal_order, horizon, max_length = (6, 1, 1), (1, 1, 0, 12), 18, 120
+elif freq == 'Weekly':
+    order, seasonal_order, horizon, max_length = (5, 1, 1), (1, 1, 0, 52), 13, 260
+elif freq == 'Daily':
+    order, seasonal_order, horizon, max_length = (5, 1, 1), (1, 1, 0, 7), 14, 200
 elif freq == 'Hourly':
-    order = (10, 1, 1)
-    seasonal_order = (0, 1, 0, 24)  # Daily seasonality
-    horizon = 48
-    max_length = None  # Do not truncate series
+    order, seasonal_order, horizon, max_length = (24, 1, 1), (0, 1, 1, 24), 48, None
 else:
-    raise ValueError("Unsupported frequency. Choose 'Daily' or 'Hourly'.")
+    raise ValueError("Unsupported frequency. Choose a valid M4 frequency.")
+
+if model_type == 'ARIMA':
+    seasonal_order = None
 
 # Load data
 train, test = train_test_split(freq)
@@ -40,7 +44,6 @@ if max_length is not None:
 # Define the folder to save all models
 model_folder = f"models/stats_{freq.lower()}/"
 os.makedirs(model_folder, exist_ok=True)
-
 
 
 def train_and_forecast(series, unique_id, model_type, order, seasonal_order, horizon):
@@ -91,7 +94,7 @@ def train_and_forecast(series, unique_id, model_type, order, seasonal_order, hor
     return forecast
 
 
-def train_arima_model(series, model_type='ARIMA', order=(1, 1, 1), seasonal_order=(0, 0, 0, 0)):
+def train_arima_model(series, model_type='ARIMA', order=(1, 1, 1), seasonal_order=None):
     if model_type == 'ARIMA':
         model = SARIMAX(
             series,

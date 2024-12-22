@@ -4,50 +4,42 @@ from sklearn.preprocessing import StandardScaler
 import time
 
 
-def recursive_predict(model, X_input, horizon, device, scalers):
-    """
-    Perform recursive forecasting for multi-step horizons.
-
-    Args:
-        model (torch.nn.Module): Trained model for prediction.
-        X_input (torch.Tensor): Input data for prediction (shape: [batch_size, seq_len, input_size]).
-        horizon (int): Number of steps to forecast.
-        device (torch.device): Device for computation.
-        scalers (dict): Scalers for inverse transformation.
-
-    Returns:
-        np.ndarray: Rescaled predictions.
-    """
+def recursive_predict(model, X_input, horizon, device, scalers, series_ids=None, batch_size=None):
     model.eval()
-    predictions = []
-    X_current = X_input.clone().to(device)  # Ensure input is on the correct device
+    num_series = X_input.size(0)
+    predictions_rescaled = []
 
     with torch.no_grad():
-        for _ in range(horizon):
-            # Model output (assumed to be [batch_size] or [batch_size, 1])
-            y_pred = model(X_current)
+        for start_idx in range(0, num_series, batch_size):
+            # Select the batch
+            end_idx = min(start_idx + batch_size, num_series)
+            X_batch = X_input[start_idx:end_idx].clone().to(device)  # Shape: [batch_size, seq_len, input_size]
+            batch_series_ids = series_ids[start_idx:end_idx]  # Corresponding series IDs for the batch
 
-            if _ > 0 and (y_pred[0].item() == predictions[-1][0]):
-                print(f"Warning: Repeated prediction detected at step {_}: {y_pred[0].item()}")
+            # Perform recursive forecasting for the batch
+            batch_predictions = []
+            for _ in range(horizon):
+                # Model output (assumed to be [batch_size] or [batch_size, 1])
+                y_pred = model(X_batch)
 
-            # Ensure y_pred has shape [batch_size, 1, input_size]
-            if y_pred.dim() == 1:  # Flattened output [batch_size]
-                y_pred = y_pred.unsqueeze(-1).unsqueeze(-1)  # [batch_size, 1, 1]
-            elif y_pred.dim() == 2:  # [batch_size, 1]
-                y_pred = y_pred.unsqueeze(-1)  # [batch_size, 1, 1]
+                # Ensure y_pred has shape [batch_size, 1, input_size]
+                if y_pred.dim() == 1:  # Flattened output [batch_size]
+                    y_pred = y_pred.unsqueeze(-1).unsqueeze(-1)  # [batch_size, 1, 1]
+                elif y_pred.dim() == 2:  # [batch_size, 1]
+                    y_pred = y_pred.unsqueeze(-1)  # [batch_size, 1, 1]
 
-            # Slide the input window forward
-            X_current = torch.cat((X_current[:, 1:, :], y_pred), dim=1)  # Maintain sequence length
-            predictions.append(y_pred.cpu().numpy())  # Store predictions
+                # Slide the input window forward
+                X_batch = torch.cat((X_batch[:, 1:, :], y_pred), dim=1)  # Maintain sequence length
+                batch_predictions.append(y_pred.cpu().numpy())  # Store predictions
 
-    # Concatenate predictions and reverse scaling
-    predictions = np.concatenate(predictions, axis=1)  # Shape: [batch_size, horizon]
-    predictions_rescaled = []
-    for i, scaler in enumerate(scalers.values()):
-        pred_scaled = scaler.inverse_transform(predictions[i].reshape(-1, 1)).flatten()
-        predictions_rescaled.append(pred_scaled)
+            # Concatenate predictions for the batch and reverse scaling
+            batch_predictions = np.concatenate(batch_predictions, axis=1)  # Shape: [batch_size, horizon]
+            for i, series_id in enumerate(batch_series_ids):
+                scaler = scalers[series_id]  # Use the correct scaler based on series_id
+                pred_scaled = scaler.inverse_transform(batch_predictions[i].reshape(-1, 1)).flatten()
+                predictions_rescaled.append(pred_scaled)
 
-    return np.array(predictions_rescaled)
+    return np.array(predictions_rescaled).reshape(num_series, horizon)  # Shape: [num_series, horizon]
 
 def train_model(model, X_train, y_train, batch_size, optimizer, criterion, epochs,
                 device=None, clip_grad_norm=None):
@@ -163,13 +155,9 @@ def train_and_predict(
     end_time = time.time()
 
     # Predict using recursive forecasting
-    y_pred = recursive_predict(model, X_test, horizon, device, scalers)
-
-    # Reshape predictions to match the expected shape
-    num_series = test["unique_id"].nunique()
-    y_pred = y_pred.reshape(num_series, horizon)
-
-    # Return predictions and training time
+    series_ids = test["unique_id"].unique()
+    num_series = len(series_ids)
+    y_pred = recursive_predict(model, X_test, horizon, device, scalers, series_ids, 2500 if num_series>2500 else num_series)
     return y_pred, end_time - start_time
 
 

@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn as nn
 from datetime import datetime
@@ -10,10 +11,12 @@ from utils.m4_train_xlstm import get_stack_cfg
 from utils.helper import load_existing_model, save_metadata, calculate_smape
 from datasetsforecast.m4 import M4Evaluation
 
+torch.cuda.empty_cache()
+
 # ===== Parameters =====
 retrain_mode = True
 full_load = True
-freq = 'Quarterly'
+freq = 'Weekly'
 embedding_dim = 64
 epochs = 10
 batch_size = 256
@@ -57,18 +60,22 @@ models = [
     ("ComplexLSTM", ComplexLSTM, {"input_size": 1, "hidden_size": lstm_hidden_size, "num_layers": 3, "dropout": 0.3, "output_size": 1}),
     ("SimpleRNN", SimpleRNN, {"input_size": 1, "hidden_size": lstm_hidden_size, "num_layers": 3, "dropout": 0.3, "output_size": 1}),
     ("TimeSeriesTransformer", TimeSeriesTransformer, {"input_size": 1, "d_model": 64, "nhead": 8, "num_layers": 3, "dim_feedforward": 128, "dropout": 0.1, "output_size": 1}),
-    # ("xLSTM", xLSTMTimeSeriesModel, None)  # xLSTM requires additional configuration
+    ("xLSTM", xLSTMTimeSeriesModel, None)  # xLSTM requires additional configuration
 ]
 
 # ===== Train and Evaluate Models =====
 for model_name, model_class, model_kwargs in models:
     print(f"\nTraining and Evaluating {model_name}...")
 
+    # Define the folder to save all models
+    model_folder = f"models/dl_{freq.lower()}/"
+    os.makedirs(model_folder, exist_ok=True)
+
     # Model-specific configurations
     if full_load:
-        model_path = f"models/dl_{freq.lower()}/{model_name.lower()}.pth"
+        model_path = f"{model_folder}{model_name.lower()}.pth"
     else:
-        model_path = f"models/dl_{freq.lower()}/{model_name.lower()}_{num_series}_series.pth"
+        model_path = f"{model_folder}{model_name.lower()}_{num_series}_series.pth"
     metadata_path = model_path.replace(".pth", "_metadata.json")
 
     if model_name == "xLSTM":
@@ -126,7 +133,11 @@ for model_name, model_class, model_kwargs in models:
         print(f"{model_name} Metadata saved to {metadata_path}")
     else:
         print(f"Loaded {model_name} from {model_path}. Performing inference...")
+        # Predict using recursive forecasting
+        series_ids = test["unique_id"].unique()
+        num_series = len(series_ids)
         with torch.no_grad():
-            predictions = recursive_predict(model, X_test, horizon, device, scalers)
-            smape = round(calculate_smape(y_true, predictions.reshape(num_series, horizon)), 2)
+            y_pred = recursive_predict(model, X_test, horizon, device, scalers, series_ids,
+                                       2500 if num_series > 2500 else num_series)
+            smape = round(calculate_smape(y_true, y_pred), 2)
         print(f"{model_name} SMAPE from loaded model: {smape}")

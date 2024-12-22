@@ -29,12 +29,12 @@ def create_train_windows(df, look_back, horizon=1):
 
         for i in range(len(scaled_series) - look_back - horizon + 1):
             seq_x = scaled_series[i: i + look_back]
-            seq_y = scaled_series[i + look_back]
+            seq_y = scaled_series[i + look_back: i + look_back + horizon]  # Multi-step targets
             X.append(seq_x)
             y.append(seq_y)
 
     X = torch.tensor(np.array(X), dtype=torch.float32)  # Shape: [samples, look_back]
-    y = torch.tensor(np.array(y), dtype=torch.float32)  # Shape: [samples]
+    y = torch.tensor(np.array(y), dtype=torch.float32)  # Shape: [samples, horizon]
     return X, y, scalers
 
 
