@@ -57,11 +57,14 @@ models = {
     'simplernn': 'dl',
     'complexlstm': 'dl',
     'timeseriestransformer': 'dl',
-    'xlstm': 'dl'
+    'xlstm': 'dl',
+    'ensemble': 'dl',
+    'sarima': 'stats',
+    'arima': 'stats'
 }
 
 for model, model_type in models.items():
-    total_smape, smape_df = calculate_weighted_smape_and_df(model, model_type, dataset)
+    total_smape, smape_df = calculate_weighted_smape_and_df(model, model_type, dataset+'/direct' if model_type=='dl' else dataset)
     results[model] = total_smape
     dfs[model] = smape_df
 

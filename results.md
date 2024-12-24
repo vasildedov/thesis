@@ -171,3 +171,20 @@ SIMPLERNN Total Weighted SMAPE: 18.33
 COMPLEXLSTM Total Weighted SMAPE: 20.44
 TIMESERIESTRANSFORMER Total Weighted SMAPE: 19.51
 XLSTM Total Weighted SMAPE: 21.65
+
+
+recursive m3:
+LGBM Total Weighted SMAPE: 14.25
+XGB Total Weighted SMAPE: 14.73
+SIMPLERNN Total Weighted SMAPE: 22.31
+COMPLEXLSTM Total Weighted SMAPE: 20.20
+TIMESERIESTRANSFORMER Total Weighted SMAPE: 21.05
+XLSTM Total Weighted SMAPE: 20.61
+
+direct m3:
+LGBM Total Weighted SMAPE: 14.25
+XGB Total Weighted SMAPE: 14.73
+SIMPLERNN Total Weighted SMAPE: 20.43
+COMPLEXLSTM Total Weighted SMAPE: 22.46
+TIMESERIESTRANSFORMER Total Weighted SMAPE: 22.47
+XLSTM Total Weighted SMAPE: 22.48

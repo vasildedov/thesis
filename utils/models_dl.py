@@ -87,6 +87,7 @@ class xLSTMTimeSeriesModel(nn.Module):
         super().__init__()
         self.direct = direct
         self.output_size = output_size if self.direct else 1
+        self.input_layer_norm = nn.LayerNorm(embedding_dim)
         self.input_projection = nn.Linear(input_size, embedding_dim)  # Project input to embedding_dim
         self.xlstm_stack = xlstm_stack
         self.output_layer = nn.Linear(embedding_dim, output_size)

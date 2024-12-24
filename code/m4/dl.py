@@ -16,8 +16,8 @@ torch.cuda.empty_cache()
 # ===== Parameters =====
 retrain_mode = False
 full_load = True
-direct = True  # direct or recursive prediction of horizon steps
-freq = 'Monthly'
+direct = False  # direct or recursive prediction of horizon steps
+freq = 'Hourly'
 embedding_dim = 64
 epochs = 10
 batch_size = 256
@@ -64,12 +64,15 @@ models = [
     ("xLSTM", xLSTMTimeSeriesModel, {"input_size": 1, "output_size": horizon if direct else 1, "embedding_dim": embedding_dim,  "direct": direct})
 ]
 
+ensemble_predictions = []
+
 # ===== Train and Evaluate Models =====
 for model_name, model_class, model_kwargs in models:
     print(f"\nTraining and Evaluating {model_name}...")
 
     # Define the folder to save all models
-    model_folder = f"models/m4/dl_{freq.lower()}/"
+    ending = 'direct' if direct else 'recursive'
+    model_folder = f"models/m4/{ending}/dl_{freq.lower()}/"
     os.makedirs(model_folder, exist_ok=True)
 
     # Model-specific configurations
@@ -143,3 +146,36 @@ for model_name, model_class, model_kwargs in models:
                                        2500 if num_series > 2500 else num_series, direct=direct)
             smape = round(calculate_smape(y_true, y_pred), 2)
         print(f"{model_name} SMAPE from loaded model: {smape}")
+    # Collect predictions for ensemble
+    ensemble_predictions.append(y_pred)
+
+
+import numpy as np
+# ===== Simple Average Ensemble =====
+print("\nCalculating Simple Average Ensemble...")
+ensemble_avg = np.mean(ensemble_predictions, axis=0)
+ensemble_smape = round(calculate_smape(y_true, ensemble_avg), 2)
+print(f"Simple Average Ensemble SMAPE: {ensemble_smape}")
+
+# Define the folder to save all models
+ending = 'direct' if direct else 'recursive'
+model_folder = f"models/m4/{ending}/dl_{freq.lower()}/"
+os.makedirs(model_folder, exist_ok=True)
+
+# Model-specific configurations
+model_path = f"{model_folder}ensemble.pth"
+metadata_path = model_path.replace(".pth", "_metadata.json")
+metadata = {
+            "model_name": 'ensemble',
+            "frequency": freq.lower(),
+            "look_back": look_back,
+            "horizon": horizon,
+            "batch_size": batch_size,
+            "epochs": epochs,
+            "criterion": str(criterion),
+            "device": str(device),
+            "SMAPE": ensemble_smape,
+            "model_path": model_path,
+            "timestamp": datetime.now().isoformat()
+        }
+save_metadata(metadata, metadata_path)
