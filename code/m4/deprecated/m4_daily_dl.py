@@ -5,7 +5,7 @@ import pandas as pd
 from utils.preprocess_ml import train_test_split, truncate_series
 from datasetsforecast.m4 import M4, M4Info, M4Evaluation
 from utils.models_ml import calculate_smape
-from utils.m4_preprocess_dl import create_rnn_windows, create_test_windows, recursive_predict_rnn, rnn_train
+from utils.preprocess_dl import create_rnn_windows, create_test_windows, recursive_predict_rnn, rnn_train
 from utils.models_dl import ComplexLSTM, SimpleRNN
 
 # Parameters

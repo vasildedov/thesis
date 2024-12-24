@@ -4,10 +4,10 @@ import torch
 import torch.nn as nn
 
 from utils.m4_preprocess import train_test_split, truncate_series
-from utils.m4_preprocess_dl import create_train_windows, create_test_windows
+from utils.preprocess_dl import create_train_windows, create_test_windows
 from utils.models_dl import xLSTMTimeSeriesModel
-from utils.m4_train_xlstm import get_stack_cfg
-from utils.m4_train_dl import train_and_predict
+from utils.train_dl_xlstm import get_stack_cfg
+from utils.train_dl import train_and_predict
 from utils.helper import load_existing_model, save_metadata, calculate_smape
 
 # args
@@ -108,7 +108,7 @@ if not model:
     save_metadata(metadata, model_path.split('.')[0]+'_metadata.json')
 
 else:
-    from utils.m4_train_dl import recursive_predict
+    from utils.train_dl import recursive_predict
     # for inferences
     with torch.no_grad():  # Disable gradient computation
         predictions = recursive_predict(model, X_test_xlstm, horizon, device, scalers_xlstm)

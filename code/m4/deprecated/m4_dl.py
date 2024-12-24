@@ -3,8 +3,8 @@ import torch.nn as nn
 from datasetsforecast.m4 import M4Evaluation
 
 from utils.m4_preprocess import train_test_split, truncate_series
-from utils.m4_preprocess_dl import create_train_windows, create_test_windows
-from utils.m4_train_dl import train_and_predict
+from utils.preprocess_dl import create_train_windows, create_test_windows
+from utils.train_dl import train_and_predict
 from utils.models_dl import ComplexLSTM, SimpleRNN, TimeSeriesTransformer
 
 # Choose the frequency

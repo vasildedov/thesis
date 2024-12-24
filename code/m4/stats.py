@@ -9,13 +9,11 @@ import os
 import time
 import json
 from datetime import datetime
-import warnings
-warnings.filterwarnings("ignore", module="statsmodels")
 
 # Choose the frequency
-freq = 'Yearly'  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Weekly', 'Daily', 'Hourly'
+freq = 'Monthly'  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Weekly', 'Daily', 'Hourly'
 # Model type can be 'ARIMA' or 'SARIMA'
-model_type = 'SARIMA'
+model_type = 'ARIMA'
 
 if freq == 'Yearly':
     order, seasonal_order, max_length = (2, 1, 1), (1, 1, 0, 12), None
