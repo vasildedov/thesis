@@ -2,10 +2,10 @@ import json
 import os
 import pandas as pd
 
-dataset = 'm4'
+dataset = 'm3'
 # Define frequencies and corresponding weights
-frequencies = ['hourly', 'daily', 'weekly', 'monthly', 'quarterly', 'yearly']
-num_series = [414, 4227, 359, 48000, 24000, 23000]
+frequencies = ['other', 'monthly', 'quarterly', 'yearly']
+num_series = [174, 1428, 756, 645]
 all_series = sum(num_series)
 
 # Construct the weights dictionary
@@ -45,6 +45,7 @@ def calculate_weighted_smape_and_df(model, model_type, dataset):
     print(f"Total Weighted SMAPE for {model}: {total_smape:.4f}\n")
 
     return total_smape, smape_df
+
 
 # Calculate SMAPE for all models
 results = {}

@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 from datetime import datetime
 import json
-from utils.m4_preprocess import train_test_split, truncate_series
+from utils.m3_preprocess import train_test_split
 from utils.m4_preprocess_dl import create_train_windows, create_test_windows
 from utils.models_dl import ComplexLSTM, SimpleRNN, TimeSeriesTransformer, xLSTMTimeSeriesModel
 from utils.m4_train_dl import train_and_predict, predict
@@ -15,39 +15,19 @@ torch.cuda.empty_cache()
 
 # ===== Parameters =====
 retrain_mode = False
-full_load = True
 direct = True  # direct or recursive prediction of horizon steps
-freq = 'Monthly'
+freq = 'Other'
 embedding_dim = 64
 epochs = 10
 batch_size = 256
 criterion = nn.MSELoss()  # Can use nn.SmoothL1Loss(beta=1.0) as alternative
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-if freq == 'Yearly':
-    max_length, num_series, lstm_hidden_size = None, 23000 if full_load else 10, 16
-elif freq == 'Quarterly':
-    max_length, num_series, lstm_hidden_size = None, 24000 if full_load else 10, 50
-elif freq == 'Monthly':
-    max_length, num_series, lstm_hidden_size = 120, 48000 if full_load else 10, 50
-elif freq == 'Weekly':
-    max_length, num_series, lstm_hidden_size = 260, 359 if full_load else 10, 64
-elif freq == 'Daily':
-    max_length, num_series, lstm_hidden_size = 200, 4227 if full_load else 10, 50
-elif freq == 'Hourly':
-    max_length, num_series, lstm_hidden_size = None, 414 if full_load else 10, 100
-else:
-    raise ValueError("Unsupported frequency. Choose from 'Yearly', 'Quarterly', 'Monthly', 'Daily', or 'Hourly'.")
-
 # ===== Load Data =====
 train, test, horizon = train_test_split(freq)
 look_back = 2*horizon
-filtered_series = train["unique_id"].unique()[:num_series]
-train = train[train["unique_id"].isin(filtered_series)]
-test = test[test["unique_id"].isin(filtered_series)]
+lstm_hidden_size = 100
 
-if max_length:
-    train = truncate_series(train, max_length)
 
 # Create datasets
 X_train, y_train, scalers = create_train_windows(train, look_back, horizon, direct=direct)
@@ -69,14 +49,11 @@ for model_name, model_class, model_kwargs in models:
     print(f"\nTraining and Evaluating {model_name}...")
 
     # Define the folder to save all models
-    model_folder = f"models/m4/dl_{freq.lower()}/"
+    model_folder = f"models/m3/dl_{freq.lower()}/"
     os.makedirs(model_folder, exist_ok=True)
 
     # Model-specific configurations
-    if full_load:
-        model_path = f"{model_folder}{model_name.lower()}.pth"
-    else:
-        model_path = f"{model_folder}{model_name.lower()}_{num_series}_series.pth"
+    model_path = f"{model_folder}{model_name.lower()}.pth"
     metadata_path = model_path.replace(".pth", "_metadata.json")
 
     if model_name == "xLSTM":
@@ -85,7 +62,7 @@ for model_name, model_class, model_kwargs in models:
 
     # Check for existing model
     model = load_existing_model(model_path, device, model_class, model_kwargs) if not retrain_mode else None
-    y_true = test['y'].values.reshape(num_series, horizon)
+    y_true = test['y'].values.reshape(test['unique_id'].nunique(), horizon)
 
     if model is None:
         print(f"No existing model found or retrain mode was enabled. Training a new {model_name}...")
@@ -128,8 +105,7 @@ for model_name, model_class, model_kwargs in models:
             "SMAPE": smape,
             "model_path": model_path,
             "time_to_train": round(duration, 2),
-            "timestamp": datetime.now().isoformat(),
-            "num_series": num_series
+            "timestamp": datetime.now().isoformat()
         }
         save_metadata(metadata, metadata_path)
         print(f"{model_name} Metadata saved to {metadata_path}")
@@ -140,6 +116,6 @@ for model_name, model_class, model_kwargs in models:
         num_series = len(series_ids)
         with torch.no_grad():
             y_pred = predict(model, X_test, horizon, device, scalers, series_ids,
-                                       2500 if num_series > 2500 else num_series, direct=direct)
+                             2500 if num_series > 2500 else num_series, direct=direct)
             smape = round(calculate_smape(y_true, y_pred), 2)
         print(f"{model_name} SMAPE from loaded model: {smape}")
