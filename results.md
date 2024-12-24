@@ -159,3 +159,15 @@ sMAPE 20.42
 let's try 10 epochs
 Training completed in 2901.36 seconds
 sMAPE 16.33
+
+direct:
+SIMPLERNN Total Weighted SMAPE: 20.18
+COMPLEXLSTM Total Weighted SMAPE: 20.51
+TIMESERIESTRANSFORMER Total Weighted SMAPE: 20.57
+XLSTM Total Weighted SMAPE: 20.82
+
+recursive:
+SIMPLERNN Total Weighted SMAPE: 18.33
+COMPLEXLSTM Total Weighted SMAPE: 20.44
+TIMESERIESTRANSFORMER Total Weighted SMAPE: 19.51
+XLSTM Total Weighted SMAPE: 21.65

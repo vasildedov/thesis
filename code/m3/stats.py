@@ -9,9 +9,9 @@ from utils.m3_preprocess import train_test_split
 from utils.helper import calculate_smape
 
 # Choose the frequency
-freq = 'Monthly'  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Other'
+freq = 'Quarterly'  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Other'
 # Model type can be 'ARIMA' or 'SARIMA'
-model_type = 'SARIMA'
+model_type = 'ARIMA'
 
 if freq == 'Yearly':
     order, seasonal_order = (1, 1, 0), (0, 0, 0, 0)  # Minimal seasonality, focus on trend
@@ -25,7 +25,7 @@ else:
     raise ValueError("Unsupported frequency. Choose a valid M3 frequency.")
 
 if model_type == 'ARIMA':
-    seasonal_order = None
+    seasonal_order = (0, 0, 0, 0)  # Explicitly set to zero-seasonality
 
 # Load data
 train, test, horizon = train_test_split(freq)

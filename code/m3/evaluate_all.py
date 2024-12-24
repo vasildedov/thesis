@@ -70,11 +70,6 @@ print("\nComparison:")
 for model, smape in results.items():
     print(f"{model.upper()} Total Weighted SMAPE: {smape:.2f}")
 
-# Display DataFrames (example for LGBM)
-print("\nLGBM SMAPE DataFrame:")
-print(dfs['lgbm'])
-
-print(dfs['xlstm'])
 
 # Optionally save all DataFrames to CSVs
 output_folder = os.path.join(os.getcwd(), f'models/smape_results/{dataset}')

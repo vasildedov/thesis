@@ -60,7 +60,7 @@ models = {
 }
 
 for model, model_type in models.items():
-    total_smape, smape_df = calculate_weighted_smape_and_df(model, model_type, dataset)
+    total_smape, smape_df = calculate_weighted_smape_and_df(model, model_type, dataset if model_type=='ml' else dataset+'/recursive')
     results[model] = total_smape
     dfs[model] = smape_df
 
@@ -69,11 +69,6 @@ print("\nComparison:")
 for model, smape in results.items():
     print(f"{model.upper()} Total Weighted SMAPE: {smape:.2f}")
 
-# Display DataFrames (example for LGBM)
-print("\nLGBM SMAPE DataFrame:")
-print(dfs['lgbm'])
-
-print(dfs['xlstm'])
 
 # Optionally save all DataFrames to CSVs
 output_folder = os.path.join(os.getcwd(), f'models/smape_results/{dataset}')

@@ -58,10 +58,10 @@ y_train = y_train.to(device)
 
 # ===== Models and Configurations =====
 models = [
-    ("ComplexLSTM", ComplexLSTM, {"input_size": 1, "hidden_size": lstm_hidden_size, "num_layers": 3, "dropout": 0.3, "output_size": horizon, "direct": direct},),
-    ("SimpleRNN", SimpleRNN, {"input_size": 1, "hidden_size": lstm_hidden_size, "num_layers": 3, "dropout": 0.3, "output_size": horizon, "direct": direct}),
-    ("TimeSeriesTransformer", TimeSeriesTransformer, {"input_size": 1, "d_model": 64, "nhead": 8, "num_layers": 3, "dim_feedforward": 128, "dropout": 0.1, "output_size": horizon, "direct": direct}),
-    ("xLSTM", xLSTMTimeSeriesModel, {"input_size": 1, "output_size": horizon, "embedding_dim": embedding_dim,  "direct": direct})
+    ("ComplexLSTM", ComplexLSTM, {"input_size": 1, "hidden_size": lstm_hidden_size, "num_layers": 3, "dropout": 0.3, "output_size": horizon if direct else 1, "direct": direct}),
+    ("SimpleRNN", SimpleRNN, {"input_size": 1, "hidden_size": lstm_hidden_size, "num_layers": 3, "dropout": 0.3, "output_size": horizon if direct else 1, "direct": direct}),
+    ("TimeSeriesTransformer", TimeSeriesTransformer, {"input_size": 1, "d_model": 64, "nhead": 8, "num_layers": 3, "dim_feedforward": 128, "dropout": 0.1, "output_size": horizon if direct else 1, "direct": direct}),
+    ("xLSTM", xLSTMTimeSeriesModel, {"input_size": 1, "output_size": horizon if direct else 1, "embedding_dim": embedding_dim,  "direct": direct})
 ]
 
 # ===== Train and Evaluate Models =====

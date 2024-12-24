@@ -9,13 +9,12 @@ from utils.models_dl import ComplexLSTM, SimpleRNN, TimeSeriesTransformer, xLSTM
 from utils.train_dl import train_and_predict, predict
 from utils.train_dl_xlstm import get_stack_cfg
 from utils.helper import load_existing_model, save_metadata, calculate_smape
-from datasetsforecast.m4 import M4Evaluation
 
 torch.cuda.empty_cache()
 
 # ===== Parameters =====
-retrain_mode = False
-direct = True  # direct or recursive prediction of horizon steps
+retrain_mode = True
+direct = False  # direct or recursive prediction of horizon steps
 freq = 'Other'
 embedding_dim = 64
 epochs = 10
@@ -38,10 +37,10 @@ y_train = y_train.to(device)
 
 # ===== Models and Configurations =====
 models = [
-    ("ComplexLSTM", ComplexLSTM, {"input_size": 1, "hidden_size": lstm_hidden_size, "num_layers": 3, "dropout": 0.3, "output_size": horizon, "direct": direct},),
-    ("SimpleRNN", SimpleRNN, {"input_size": 1, "hidden_size": lstm_hidden_size, "num_layers": 3, "dropout": 0.3, "output_size": horizon, "direct": direct}),
-    ("TimeSeriesTransformer", TimeSeriesTransformer, {"input_size": 1, "d_model": 64, "nhead": 8, "num_layers": 3, "dim_feedforward": 128, "dropout": 0.1, "output_size": horizon, "direct": direct}),
-    ("xLSTM", xLSTMTimeSeriesModel, {"input_size": 1, "output_size": horizon, "embedding_dim": embedding_dim,  "direct": direct})
+    ("ComplexLSTM", ComplexLSTM, {"input_size": 1, "hidden_size": lstm_hidden_size, "num_layers": 3, "dropout": 0.3, "output_size": horizon if direct else 1, "direct": direct}),
+    ("SimpleRNN", SimpleRNN, {"input_size": 1, "hidden_size": lstm_hidden_size, "num_layers": 3, "dropout": 0.3, "output_size": horizon if direct else 1, "direct": direct}),
+    ("TimeSeriesTransformer", TimeSeriesTransformer, {"input_size": 1, "d_model": 64, "nhead": 8, "num_layers": 3, "dim_feedforward": 128, "dropout": 0.1, "output_size": horizon if direct else 1, "direct": direct}),
+    ("xLSTM", xLSTMTimeSeriesModel, {"input_size": 1, "output_size": horizon if direct else 1, "embedding_dim": embedding_dim,  "direct": direct})
 ]
 
 # ===== Train and Evaluate Models =====
@@ -71,7 +70,7 @@ for model_name, model_class, model_kwargs in models:
         # Train and evaluate
         y_pred, duration = train_and_predict(
             device,
-            lambda: model,
+            model,
             X_train,
             y_train,
             X_test,
