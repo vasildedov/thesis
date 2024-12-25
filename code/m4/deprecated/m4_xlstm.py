@@ -3,7 +3,7 @@ import json
 import torch
 import torch.nn as nn
 
-from utils.m4_preprocess import train_test_split, truncate_series
+from utils.preprocess_m4 import train_test_split, truncate_series
 from utils.preprocess_dl import create_train_windows, create_test_windows
 from utils.models_dl import xLSTMTimeSeriesModel
 from utils.train_dl_xlstm import get_stack_cfg

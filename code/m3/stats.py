@@ -5,7 +5,7 @@ import time
 import json
 from datetime import datetime
 from utils.train_stats import train_and_forecast
-from utils.m3_preprocess import train_test_split
+from utils.preprocess_m3 import train_test_split
 from utils.helper import calculate_smape
 
 # Choose the frequency

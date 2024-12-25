@@ -1,6 +1,6 @@
 import time
 import json
-from utils.m3_preprocess import train_test_split
+from utils.preprocess_m3 import train_test_split
 from utils.preprocess_ml import create_train_windows, create_test_windows
 from utils.train_ml import train_and_save_model, ensemble_predict
 from utils.models_ml import LGBMModel, XGBModel

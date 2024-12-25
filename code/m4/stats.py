@@ -1,6 +1,6 @@
 import numpy as np
 from datasetsforecast.m4 import M4, M4Info, M4Evaluation
-from utils.m4_preprocess import train_test_split, truncate_series
+from utils.preprocess_m4 import train_test_split, truncate_series
 from utils.train_stats import train_and_forecast
 from joblib import Parallel, delayed
 import os

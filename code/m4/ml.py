@@ -1,7 +1,7 @@
 import time
 import json
 from datasetsforecast.m4 import M4, M4Info, M4Evaluation
-from utils.m4_preprocess import train_test_split, truncate_series
+from utils.preprocess_m4 import train_test_split, truncate_series
 from utils.preprocess_ml import create_train_windows, create_test_windows
 from utils.train_ml import train_and_save_model, ensemble_predict
 from utils.models_ml import LGBMModel, XGBModel

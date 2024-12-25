@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 from datasetsforecast.m4 import M4, M4Info, M4Evaluation
-from utils.m4_preprocess import train_test_split, truncate_series
+from utils.preprocess_m4 import train_test_split, truncate_series
 from statsmodels.tsa.statespace.sarimax import SARIMAX, SARIMAXResults
 from joblib import Parallel, delayed
 import os

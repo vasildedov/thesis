@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 from datetime import datetime
 import json
-from utils.m3_preprocess import train_test_split
+from utils.preprocess_m3 import train_test_split
 from utils.preprocess_dl import create_train_windows, create_test_windows
 from utils.models_dl import ComplexLSTM, SimpleRNN, TimeSeriesTransformer, xLSTMTimeSeriesModel
 from utils.train_dl import train_and_predict, predict
@@ -15,10 +15,10 @@ torch.cuda.empty_cache()
 
 # ===== Parameters =====
 retrain_mode = False
-direct = True  # direct or recursive prediction of horizon steps
+direct = False  # direct or recursive prediction of horizon steps
 freq = 'Monthly'
 embedding_dim = 64
-epochs = 30
+epochs = 1
 batch_size = 256
 criterion = nn.MSELoss()  # Can use nn.SmoothL1Loss(beta=1.0) as alternative
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
