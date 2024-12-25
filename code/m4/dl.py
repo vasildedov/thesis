@@ -10,6 +10,7 @@ from utils.train_dl import train_and_predict, predict
 from utils.train_dl_xlstm import get_stack_cfg
 from utils.helper import load_existing_model, save_metadata, calculate_smape
 from datasetsforecast.m4 import M4Evaluation
+import numpy as np
 
 torch.cuda.empty_cache()
 
@@ -66,14 +67,14 @@ models = [
 
 ensemble_predictions = []
 
+# Define the folder to save all models
+ending = 'direct' if direct else 'recursive'
+model_folder = f"models/m4/{ending}/dl_{freq.lower()}/"
+os.makedirs(model_folder, exist_ok=True)
+
 # ===== Train and Evaluate Models =====
 for model_name, model_class, model_kwargs in models:
     print(f"\nTraining and Evaluating {model_name}...")
-
-    # Define the folder to save all models
-    ending = 'direct' if direct else 'recursive'
-    model_folder = f"models/m4/{ending}/dl_{freq.lower()}/"
-    os.makedirs(model_folder, exist_ok=True)
 
     # Model-specific configurations
     if full_load:
@@ -150,17 +151,11 @@ for model_name, model_class, model_kwargs in models:
     ensemble_predictions.append(y_pred)
 
 
-import numpy as np
 # ===== Simple Average Ensemble =====
 print("\nCalculating Simple Average Ensemble...")
 ensemble_avg = np.mean(ensemble_predictions, axis=0)
 ensemble_smape = round(calculate_smape(y_true, ensemble_avg), 2)
 print(f"Simple Average Ensemble SMAPE: {ensemble_smape}")
-
-# Define the folder to save all models
-ending = 'direct' if direct else 'recursive'
-model_folder = f"models/m4/{ending}/dl_{freq.lower()}/"
-os.makedirs(model_folder, exist_ok=True)
 
 # Model-specific configurations
 model_path = f"{model_folder}ensemble.pth"

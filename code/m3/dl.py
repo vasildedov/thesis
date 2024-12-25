@@ -9,15 +9,16 @@ from utils.models_dl import ComplexLSTM, SimpleRNN, TimeSeriesTransformer, xLSTM
 from utils.train_dl import train_and_predict, predict
 from utils.train_dl_xlstm import get_stack_cfg
 from utils.helper import load_existing_model, save_metadata, calculate_smape
+import numpy as np
 
 torch.cuda.empty_cache()
 
 # ===== Parameters =====
 retrain_mode = False
 direct = True  # direct or recursive prediction of horizon steps
-freq = 'Other'
+freq = 'Monthly'
 embedding_dim = 64
-epochs = 10
+epochs = 30
 batch_size = 256
 criterion = nn.MSELoss()  # Can use nn.SmoothL1Loss(beta=1.0) as alternative
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -26,7 +27,6 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 train, test, horizon = train_test_split(freq)
 look_back = 2*horizon
 lstm_hidden_size = 100
-
 
 # Create datasets
 X_train, y_train, scalers = create_train_windows(train, look_back, horizon, direct=direct)
@@ -45,14 +45,14 @@ models = [
 
 ensemble_predictions = []
 
+# Define the folder to save all models
+ending = 'direct' if direct else 'recursive'
+model_folder = f"models/m3/{ending}/dl_{freq.lower()}/"
+os.makedirs(model_folder, exist_ok=True)
+
 # ===== Train and Evaluate Models =====
 for model_name, model_class, model_kwargs in models:
     print(f"\nTraining and Evaluating {model_name}...")
-
-    # Define the folder to save all models
-    ending = 'direct' if direct else 'recursive'
-    model_folder = f"models/m3/{ending}/dl_{freq.lower()}/"
-    os.makedirs(model_folder, exist_ok=True)
 
     # Model-specific configurations
     model_path = f"{model_folder}{model_name.lower()}.pth"
@@ -125,17 +125,11 @@ for model_name, model_class, model_kwargs in models:
     # Collect predictions for ensemble
     ensemble_predictions.append(y_pred)
 
-import numpy as np
 # ===== Simple Average Ensemble =====
 print("\nCalculating Simple Average Ensemble...")
 ensemble_avg = np.mean(ensemble_predictions, axis=0)
 ensemble_smape = round(calculate_smape(y_true, ensemble_avg), 2)
 print(f"Simple Average Ensemble SMAPE: {ensemble_smape}")
-
-# Define the folder to save all models
-ending = 'direct' if direct else 'recursive'
-model_folder = f"models/m3/{ending}/dl_{freq.lower()}/"
-os.makedirs(model_folder, exist_ok=True)
 
 # Model-specific configurations
 model_path = f"{model_folder}ensemble.pth"
