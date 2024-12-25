@@ -15,8 +15,8 @@ torch.cuda.empty_cache()
 
 # ===== Parameters =====
 retrain_mode = False
-direct = False  # direct or recursive prediction of horizon steps
-freq = 'quarterly'
+direct = True  # direct or recursive prediction of horizon steps
+freq = 'monthly'
 embedding_dim = 64
 epochs = 10
 batch_size = 256
@@ -25,7 +25,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # ===== Load Data =====
 train, test, horizon = train_test_split(freq)
-look_back = 2*horizon
+look_back = 2*horizon if not freq=='yearly' else 7
 lstm_hidden_size = 100
 
 # Create datasets

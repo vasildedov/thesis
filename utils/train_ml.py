@@ -3,7 +3,7 @@ import os
 import time
 import numpy as np
 from datasetsforecast.m4 import M4Evaluation
-from utils.helper import calculate_smape
+from utils.helper import calculate_smape, calculate_mape
 
 
 def train_and_save_model(model, model_name, X_train, y_train, X_test, y_test, horizon, freq, look_back,
@@ -32,9 +32,14 @@ def train_and_save_model(model, model_name, X_train, y_train, X_test, y_test, ho
             evaluation_df = M4Evaluation.evaluate('data', freq, y_pred)
             evaluation = evaluation_df.to_dict()
             print(f"{model_name} evaluation completed for loaded model.")
+            evaluation['MAPE'] = calculate_mape(y_test, y_pred)
+            print("sMAPE:", evaluation['SMAPE'][freq], "MAPE:", evaluation['MAPE'])
         else:
             evaluation = {}
             evaluation['SMAPE'] = calculate_smape(y_test, y_pred)
+            evaluation['MAPE'] = calculate_mape(y_test, y_pred)
+            print("SMAPE:", evaluation['SMAPE'], "MAPE:", evaluation['MAPE'])
+
         return y_pred, evaluation
     else:
         print(f"No existing {model_name} model found. Training a new model...")
@@ -59,11 +64,15 @@ def train_and_save_model(model, model_name, X_train, y_train, X_test, y_test, ho
         evaluation_df = M4Evaluation.evaluate('data', freq, y_pred)
         evaluation = evaluation_df.to_dict()
         print(f"{model_name} evaluation completed for loaded model.")
-        print("SMAPE:", evaluation['SMAPE'][0])
+        print("SMAPE:", evaluation['SMAPE'][freq])
+        evaluation['MAPE'] = calculate_mape(y_test, y_pred)
+        print("MAPE:", evaluation['MAPE'])
+
     else:
         evaluation = {}
         evaluation['SMAPE'] = calculate_smape(y_test, y_pred)
-        print("SMAPE:", evaluation['SMAPE'])
+        evaluation['MAPE'] = calculate_mape(y_test, y_pred)
+        print("SMAPE:", evaluation['SMAPE'], "MAPE:", evaluation['MAPE'])
 
     # Save metadata
     metadata = {
@@ -72,7 +81,8 @@ def train_and_save_model(model, model_name, X_train, y_train, X_test, y_test, ho
         "look_back": look_back,
         "horizon": horizon,
         "time_to_train": round(end_time - start_time, 2),
-        "SMAPE": evaluation['SMAPE'][0] if dataset=='m4' else evaluation['SMAPE'],
+        "SMAPE": evaluation['SMAPE'][freq] if dataset=='m4' else evaluation['SMAPE'],
+        "MAPE": evaluation['MAPE'] if dataset=='m4' else evaluation['MAPE'],
         "model_path": model_path,
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
     }
