@@ -31,7 +31,7 @@ def train_and_forecast(series, unique_id, model_type, order, seasonal_order, hor
             print(f"Parameter mismatch for {unique_id}. Expected {expected_length}, got {len(params)}.")
             print(f"Re-training model for {unique_id}...")
             os.remove(model_path)  # Delete malformed file
-            return train_and_forecast(series, unique_id, model_type, order, seasonal_order, horizon)
+            return train_and_forecast(series, unique_id, model_type, order, seasonal_order, horizon, model_folder)
 
         # Apply the saved parameters
         fitted_model = model.filter(params)
