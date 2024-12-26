@@ -16,7 +16,7 @@ torch.cuda.empty_cache()
 # ===== Parameters =====
 retrain_mode = False
 direct = True  # direct or recursive prediction of horizon steps
-freq = 'monthly'
+freq = 'yearly'
 embedding_dim = 64
 epochs = 10
 batch_size = 256

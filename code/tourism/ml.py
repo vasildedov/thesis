@@ -7,10 +7,10 @@ from utils.models_ml import LGBMModel, XGBModel
 from utils.helper import calculate_smape
 
 # Choose the frequency
-freq = 'monthly'
-retrain = False
-# Load train and test data
+freq = 'yearly'
+retrain = True
 
+# Load train and test data
 train, test, horizon = train_test_split(freq)
 look_back = 2*horizon if not freq=='yearly' else 7
 

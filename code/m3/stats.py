@@ -11,7 +11,7 @@ from utils.helper import calculate_smape
 # Choose the frequency
 freq = 'Quarterly'  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Other'
 # Model type can be 'ARIMA' or 'SARIMA'
-model_type = 'ARIMA'
+model_type = 'SARIMA'
 
 if freq == 'Yearly':
     order, seasonal_order = (1, 1, 0), (0, 0, 0, 0)  # Minimal seasonality, focus on trend

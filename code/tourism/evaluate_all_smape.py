@@ -2,10 +2,10 @@ import json
 import os
 import pandas as pd
 
-dataset = 'm3'
+dataset = 'tourism'
 # Define frequencies and corresponding weights
-frequencies = ['other', 'monthly', 'quarterly', 'yearly']
-num_series = [174, 1428, 756, 645]
+frequencies = ['monthly', 'quarterly', 'yearly']
+num_series = [366, 427, 518]
 all_series = sum(num_series)
 
 # Construct the weights dictionary
@@ -46,7 +46,6 @@ def calculate_weighted_smape_and_df(model, model_type, dataset):
 
     return total_smape, smape_df
 
-
 # Calculate SMAPE for all models
 results = {}
 dfs = {}
@@ -63,10 +62,8 @@ models = {
     'arima': 'stats'
 }
 
-# no seasonality for yearly, other -> results for sarima == arima
-
 for model, model_type in models.items():
-    total_smape, smape_df = calculate_weighted_smape_and_df(model, model_type, dataset+'/direct' if model_type=='dl' else dataset)
+    total_smape, smape_df = calculate_weighted_smape_and_df(model, model_type, dataset+'/recursive' if model_type=='dl' else dataset)
     results[model] = total_smape
     dfs[model] = smape_df
 
