@@ -4,7 +4,7 @@ import os
 import time
 import json
 from datetime import datetime
-from utils.train_stats import train_and_forecast
+from utils.train_stats_new import train_and_forecast
 from utils.preprocess_tourism import train_test_split
 from utils.helper import calculate_smape, calculate_mape
 
@@ -37,13 +37,10 @@ start_overall_time = time.time()
 
 forecasts = [
     train_and_forecast(
-        train[train['unique_id'] == uid]['y'].asfreq(asfreq),
-        unique_id=uid,
-        model_type=model_type,
-        order=order,
-        seasonal_order=seasonal_order,
+        train[train['unique_id'] == uid]['y'],
+        seasonal=False,
+        m=12,
         horizon=horizon,
-        model_folder=model_folder
     )
     for uid in train['unique_id'].unique()
 ]
