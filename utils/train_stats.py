@@ -57,7 +57,6 @@ def train_arima_model(series, model_type='ARIMA', order=(1, 1, 1), seasonal_orde
         model = SARIMAX(
             series,
             order=order,
-            seasonal_order=seasonal_order,
             enforce_stationarity=False,
             enforce_invertibility=False
         )
@@ -65,6 +64,7 @@ def train_arima_model(series, model_type='ARIMA', order=(1, 1, 1), seasonal_orde
         model = SARIMAX(
             series,
             order=order,
+            seasonal_order=seasonal_order,
             enforce_stationarity=False,
             enforce_invertibility=False
         )

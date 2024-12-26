@@ -62,6 +62,9 @@ models = {
     'arima': 'stats'
 }
 
+# no seasonal component for yearly sarima -> they are the same -> copy arima metadata for sarima
+
+
 for model, model_type in models.items():
     total_mape, mape_df = calculate_weighted_mape_and_df(model, model_type, dataset+'/direct' if model_type=='dl' else dataset)
     results[model] = total_mape

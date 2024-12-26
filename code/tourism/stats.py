@@ -9,7 +9,7 @@ from utils.preprocess_tourism import train_test_split
 from utils.helper import calculate_smape, calculate_mape
 
 # Choose the frequency
-freq = 'monthly'  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Other'
+freq = 'yearly'  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Other'
 # Model type can be 'ARIMA' or 'SARIMA'
 model_type = 'ARIMA'
 
@@ -19,8 +19,6 @@ elif freq == 'quarterly':
     order, seasonal_order = (2, 1, 2), (0, 1, 1, 4)  # Quarterly seasonality
 elif freq == 'monthly':
     order, seasonal_order = (2, 1, 2), (1, 1, 1, 12)  # Slightly simpler
-elif freq == 'other':
-    order, seasonal_order = (1, 1, 1), (0, 0, 0, 0)  # Minimal, adapt based on data
 else:
     raise ValueError("Unsupported frequency. Choose a valid M3 frequency.")
 
