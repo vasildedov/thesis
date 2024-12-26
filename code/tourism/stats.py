@@ -9,7 +9,7 @@ from utils.preprocess_tourism import train_test_split
 from utils.helper import calculate_smape, calculate_mape
 
 # Choose the frequency
-freq = 'monthly'  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Other'
+freq = 'yearly'  # Options: 'yearly', 'quarterly', 'monthly'
 # Model type can be 'ARIMA' or 'SARIMA'
 model_type = 'ARIMA'
 

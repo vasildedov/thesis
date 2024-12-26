@@ -1,5 +1,4 @@
 import numpy as np
-from joblib import Parallel, delayed
 import os
 import time
 import json
@@ -9,9 +8,9 @@ from utils.preprocess_m3 import train_test_split
 from utils.helper import calculate_smape
 
 # Choose the frequency
-freq = 'Quarterly'  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Other'
+freq = 'Monthly'  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Other'
 # Model type can be 'ARIMA' or 'SARIMA'
-model_type = 'SARIMA'
+model_type = 'ARIMA'
 
 if freq == 'Yearly':
     order, seasonal_order, asfreq = (1, 1, 0), (0, 0, 0, 0), 'YE'  # Minimal seasonality, focus on trend
@@ -64,16 +63,19 @@ print('SMAPE:\n', round(evaluation, 2))
 
 # Save evaluation metadata
 metadata_path = os.path.join(model_folder, f"{model_type.lower()}_metadata.json")
-metadata = {
-    "model_name": model_type,
-    "frequency": freq.lower(),
-    "order": order,
-    "seasonal_order": seasonal_order,
-    "horizon": horizon,
-    "SMAPE": round(evaluation, 2),
-    "time_to_train": round(end_overall_time-start_overall_time, 2),
-    "timestamp": datetime.now().isoformat()
-}
-with open(metadata_path, "w") as f:
-    json.dump(metadata, f, indent=4)
-print(f"Metadata saved to {metadata_path}")
+if not os.path.exists(metadata_path):
+    metadata = {
+        "model_name": model_type,
+        "frequency": freq.lower(),
+        "order": order,
+        "seasonal_order": seasonal_order,
+        "horizon": horizon,
+        "SMAPE": round(evaluation, 2),
+        "time_to_train": round(end_overall_time-start_overall_time, 2),
+        "timestamp": datetime.now().isoformat()
+    }
+    with open(metadata_path, "w") as f:
+        json.dump(metadata, f, indent=4)
+    print(f"Metadata saved to {metadata_path}")
+else:
+    print('Metadata already saved at that path.')

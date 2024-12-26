@@ -6,9 +6,9 @@ import json
 from utils.preprocess_m4 import train_test_split, truncate_series
 from utils.preprocess_dl import create_train_windows, create_test_windows
 from utils.models_dl import ComplexLSTM, SimpleRNN, TimeSeriesTransformer, xLSTMTimeSeriesModel
-from utils.train_dl import train_and_predict, predict
+from utils.train_dl import train_and_predict, predict, load_existing_model
 from utils.train_dl_xlstm import get_stack_cfg
-from utils.helper import load_existing_model, save_metadata, calculate_smape
+from utils.helper import save_metadata, calculate_smape
 from datasetsforecast.m4 import M4Evaluation
 import numpy as np
 

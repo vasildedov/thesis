@@ -2,14 +2,13 @@ import numpy as np
 from datasetsforecast.m4 import M4, M4Info, M4Evaluation
 from utils.preprocess_m4 import train_test_split, truncate_series
 from utils.train_stats import train_and_forecast
-from joblib import Parallel, delayed
 import os
 import time
 import json
 from datetime import datetime
 
 # Choose the frequency
-freq = 'Monthly'  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Weekly', 'Daily', 'Hourly'
+freq = 'Daily'  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Weekly', 'Daily', 'Hourly'
 # Model type can be 'ARIMA' or 'SARIMA'
 model_type = 'ARIMA'
 
@@ -44,9 +43,8 @@ os.makedirs(model_folder, exist_ok=True)
 # Using parallel processing to speed up training and forecasting
 start_overall_time = time.time()
 
-# Using parallel processing to speed up training and forecasting
-forecasts = Parallel(n_jobs=-1)(
-    delayed(train_and_forecast)(
+forecasts = [
+    train_and_forecast(
         train[train['unique_id'] == uid]['y'],
         unique_id=uid,
         model_type=model_type,
@@ -56,7 +54,7 @@ forecasts = Parallel(n_jobs=-1)(
         model_folder=model_folder
     )
     for uid in train['unique_id'].unique()
-)
+]
 
 end_overall_time = time.time()
 
