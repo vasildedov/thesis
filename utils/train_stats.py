@@ -60,7 +60,7 @@ def train_arima_model(series, model_type='ARIMA', order=(1, 1, 1), seasonal_orde
             enforce_stationarity=False,
             enforce_invertibility=False
         )
-    else:  # Default to ARIMA
+    else:
         model = SARIMAX(
             series,
             order=order,

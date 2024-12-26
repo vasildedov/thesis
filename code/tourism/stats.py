@@ -9,36 +9,35 @@ from utils.preprocess_tourism import train_test_split
 from utils.helper import calculate_smape, calculate_mape
 
 # Choose the frequency
-freq = 'yearly'  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Other'
+freq = 'monthly'  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Other'
 # Model type can be 'ARIMA' or 'SARIMA'
 model_type = 'ARIMA'
 
 if freq == 'yearly':
-    order, seasonal_order = (1, 1, 0), (0, 0, 0, 0)  # Minimal seasonality, focus on trend
+    order, seasonal_order, asfreq = (1, 1, 0), (0, 0, 0, 0), 'YE'  # Minimal seasonality, focus on trend
 elif freq == 'quarterly':
-    order, seasonal_order = (2, 1, 2), (0, 1, 1, 4)  # Quarterly seasonality
+    order, seasonal_order, asfreq = (2, 1, 2), (0, 1, 1, 4), 'QE'  # Quarterly seasonality
 elif freq == 'monthly':
-    order, seasonal_order = (2, 1, 2), (1, 1, 1, 12)  # Slightly simpler
+    order, seasonal_order, asfreq = (2, 1, 2), (1, 1, 1, 12), 'ME'  # Slightly simpler
 else:
-    raise ValueError("Unsupported frequency. Choose a valid M3 frequency.")
+    raise ValueError("Unsupported frequency. Choose a valid tourism frequency.")
 
 if model_type == 'ARIMA':
     seasonal_order = (0, 0, 0, 0)  # Explicitly set to zero-seasonality
 
 # Load data
 train, test, horizon = train_test_split(freq)
+train.set_index('ds', inplace=True)
 
 # Define the folder to save all models
 model_folder = f"models/tourism/stats_{freq.lower()}/"
 os.makedirs(model_folder, exist_ok=True)
 
-# Using parallel processing to speed up training and forecasting
 start_overall_time = time.time()
 
-# Using parallel processing to speed up training and forecasting
-forecasts = Parallel(n_jobs=-1)(
-    delayed(train_and_forecast)(
-        train[train['unique_id'] == uid]['y'],
+forecasts = [
+    train_and_forecast(
+        train[train['unique_id'] == uid]['y'].asfreq(asfreq),
         unique_id=uid,
         model_type=model_type,
         order=order,
@@ -47,7 +46,7 @@ forecasts = Parallel(n_jobs=-1)(
         model_folder=model_folder
     )
     for uid in train['unique_id'].unique()
-)
+]
 
 end_overall_time = time.time()
 

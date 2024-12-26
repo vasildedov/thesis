@@ -14,13 +14,13 @@ freq = 'Quarterly'  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Other'
 model_type = 'SARIMA'
 
 if freq == 'Yearly':
-    order, seasonal_order = (1, 1, 0), (0, 0, 0, 0)  # Minimal seasonality, focus on trend
+    order, seasonal_order, asfreq = (1, 1, 0), (0, 0, 0, 0), 'YE'  # Minimal seasonality, focus on trend
 elif freq == 'Quarterly':
-    order, seasonal_order = (2, 1, 2), (0, 1, 1, 4)  # Quarterly seasonality
+    order, seasonal_order, asfreq = (2, 1, 2), (0, 1, 1, 4), 'QE'  # Quarterly seasonality
 elif freq == 'Monthly':
-    order, seasonal_order = (3, 1, 2), (0, 1, 1, 12)  # Monthly seasonality
+    order, seasonal_order, asfreq = (3, 1, 2), (0, 1, 1, 12), 'ME'  # Monthly seasonality
 elif freq == 'Other':
-    order, seasonal_order = (1, 1, 1), (0, 0, 0, 0)  # Minimal, adapt based on data
+    order, seasonal_order, asfreq = (1, 1, 1), (0, 0, 0, 0), None  # Minimal, adapt based on data
 else:
     raise ValueError("Unsupported frequency. Choose a valid M3 frequency.")
 
@@ -29,18 +29,17 @@ if model_type == 'ARIMA':
 
 # Load data
 train, test, horizon = train_test_split(freq)
+train.set_index('ds', inplace=True)
 
 # Define the folder to save all models
 model_folder = f"models/m3/stats_{freq.lower()}/"
 os.makedirs(model_folder, exist_ok=True)
 
-# Using parallel processing to speed up training and forecasting
 start_overall_time = time.time()
 
-# Using parallel processing to speed up training and forecasting
-forecasts = Parallel(n_jobs=-1)(
-    delayed(train_and_forecast)(
-        train[train['unique_id'] == uid]['y'],
+forecasts = [
+    train_and_forecast(
+        train[train['unique_id'] == uid]['y'].asfreq(asfreq),
         unique_id=uid,
         model_type=model_type,
         order=order,
@@ -49,7 +48,7 @@ forecasts = Parallel(n_jobs=-1)(
         model_folder=model_folder
     )
     for uid in train['unique_id'].unique()
-)
+]
 
 end_overall_time = time.time()
 
