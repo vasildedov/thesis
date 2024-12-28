@@ -8,18 +8,18 @@ import json
 from datetime import datetime
 
 # Choose the frequency
-freq = 'Daily'  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Weekly', 'Daily', 'Hourly'
+freq = 'Yearly'  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Weekly', 'Daily', 'Hourly'
 # Model type can be 'ARIMA' or 'SARIMA'
-model_type = 'ARIMA'
+model_type = 'SARIMA'
 
 if freq == 'Yearly':
     order, seasonal_order, max_length = (2, 1, 1), (1, 1, 0, 12), None
 elif freq == 'Quarterly':
-    order, seasonal_order, max_length = (4, 1, 1), (1, 1, 0, 4), None
+    order, seasonal_order, max_length = (3, 1, 1), (1, 1, 0, 4), None
 elif freq == 'Monthly':
     order, seasonal_order, max_length = (6, 1, 1), (1, 1, 0, 12), 120
 elif freq == 'Weekly':
-    order, seasonal_order, max_length = (5, 1, 1), (1, 1, 0, 52), 260
+    order, seasonal_order, max_length = (5, 1, 1), (1, 1, 0, 52), None
 elif freq == 'Daily':
     order, seasonal_order, max_length = (5, 1, 1), (1, 1, 0, 7), 200
 elif freq == 'Hourly':

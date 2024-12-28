@@ -20,7 +20,7 @@ def train_and_forecast(series, unique_id, model_type, order, seasonal_order, hor
         model = SARIMAX(
             series,
             order=tuple(model_data["order"]),
-            seasonal_order=tuple(model_data["seasonal_order"]),
+            seasonal_order=tuple(model_data["seasonal_order"]) if model_data["seasonal_order"] is not None else None,
             enforce_stationarity=False,
             enforce_invertibility=False
         )

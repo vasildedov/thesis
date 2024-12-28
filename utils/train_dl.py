@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 import time
-
+import os
 
 def load_existing_model(model_path, device, model_class, model_kwargs):
     """
