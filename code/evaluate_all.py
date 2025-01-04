@@ -3,15 +3,23 @@ import os
 import pandas as pd
 from utils.evaluation import calculate_weighted_smape_and_df, calculate_smape_per_frequency
 
-dataset = 'm3'
+dataset = 'tourism'
 direct = False
 if direct:
     sufix = 'direct'
 else:
     sufix = 'recursive'
 # Define frequencies and corresponding weights
-frequencies = ['other', 'monthly', 'quarterly', 'yearly']
-num_series = [174, 1428, 756, 645]
+if dataset == 'm3':
+    frequencies = ['other', 'monthly', 'quarterly', 'yearly']
+    num_series = [174, 1428, 756, 645]
+elif dataset == 'm4':
+    frequencies = ['hourly', 'daily', 'weekly', 'monthly', 'quarterly', 'yearly']
+    num_series = [414, 4227, 359, 48000, 24000, 23000]
+else:
+    frequencies = ['monthly', 'quarterly', 'yearly']
+    num_series = [366, 427, 518]
+
 all_series = sum(num_series)
 
 # Construct the weights dictionary
@@ -29,11 +37,9 @@ models = {
     'timeseriestransformer': 'dl',
     'xlstm': 'dl',
     # 'ensemble': 'dl',
-    'sarima': 'stats',
+    # 'sarima': 'stats',
     'arima': 'stats'
 }
-
-# no seasonality for yearly, other -> results for sarima == arima
 
 for model, model_type in models.items():
     total_smape, smape_df = calculate_weighted_smape_and_df(model, model_type,
