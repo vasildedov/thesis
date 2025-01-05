@@ -3,7 +3,7 @@ import os
 import pandas as pd
 from utils.evaluation import calculate_weighted_smape_and_df, calculate_smape_per_frequency
 
-dataset = 'tourism'
+dataset = 'm3'
 direct = False
 if direct:
     sufix = 'direct'
@@ -63,14 +63,13 @@ for model, smape in results.items():
 #     print(f"Saved SMAPE DataFrame for {model} to {output_path}")
 
 # Calculate SMAPE per frequency
-metrics_df = calculate_smape_per_frequency(models, dataset, frequencies, sufix)
-
+metrics_df = calculate_smape_per_frequency(models, dataset, frequencies)
 # Display the DataFrame
 print("SMAPE per Frequency for Each Model:")
 print(metrics_df)
 
 # Split metrics_df into separate DataFrames based on frequency
-frequency_dfs = {freq: group for freq, group in metrics_df.groupby('Frequency')}
+frequency_dfs = {freq: group.droplevel('Frequency') for freq, group in metrics_df.groupby('Frequency')}
 
 # Define output folder for LaTeX files
 output_folder = os.path.join(os.getcwd(), f'models/metrics_results/{dataset}/latex_by_frequency')
@@ -78,10 +77,16 @@ os.makedirs(output_folder, exist_ok=True)
 
 # Save each frequency-specific DataFrame as a LaTeX file
 for freq, df in frequency_dfs.items():
-    # Convert DataFrame to LaTeX
-    latex_table = df.drop(columns=['Frequency']).to_latex(index=False,
-                                                          caption=f"Metrics for {freq.capitalize()} Frequency",
-                                                          label=f"tab:metrics_{freq}")
+    # Reset index and prepare the DataFrame for LaTeX
+    df = df.reset_index().fillna('N/A')
+
+    # Convert DataFrame to LaTeX with multicolumn for MultiIndex columns
+    latex_table = df.to_latex(index=False,
+                              caption=f"Metrics for {freq.capitalize()} Frequency",
+                              label=f"tab:metrics_{freq}",
+                              multicolumn=True,
+                              float_format="%.2f"  # Ensures numbers have at most 2 decimal places
+                              )
 
     # Save LaTeX table to a file
     output_path = os.path.join(output_folder, f"metrics_{freq}.tex")
@@ -89,4 +94,3 @@ for freq, df in frequency_dfs.items():
         f.write(latex_table)
 
     print(f"Saved LaTeX table for {freq} to {output_path}")
-

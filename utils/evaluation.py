@@ -40,40 +40,50 @@ def calculate_weighted_smape_and_df(model, model_type, dataset, frequencies, wei
 
 
 # Function to calculate SMAPE per frequency for each model
-def calculate_smape_per_frequency(models, dataset, frequencies, sufix):
+def calculate_smape_per_frequency(models, dataset, frequencies):
     # Initialize a dictionary to store SMAPE data per frequency
-    metrics_per_frequency = {freq: {} for freq in frequencies}
-
-    for model, model_type in models.items():
-        base_path = os.path.join(os.getcwd(), f'models/{dataset}/{sufix}' if model_type=='dl' else f'models/{dataset}')
-        for freq in frequencies:
-            folder = f'{model_type}_{freq}'
-            metadata_path = os.path.join(base_path, folder, f'{model}_metadata.json')
-
-            if os.path.exists(metadata_path):
-                with open(metadata_path, 'r') as f:
-                    metadata = json.load(f)
-                    smape = metadata.get('SMAPE', float('nan'))
-                    training_time = metadata.get('time_to_train', float('nan'))
-                    metrics_per_frequency[freq][model] = {
-                        'SMAPE': smape,
-                        'Training Time': training_time
-                    }
-            else:
-                metrics_per_frequency[freq][model] = {
-                    'SMAPE': None,
-                    'Training Time': None  # Indicate missing data
-                }
-    # Convert to DataFrame for better readability
+    suffixes = ['direct', 'recursive']
     data = []
-    for freq, models_data in metrics_per_frequency.items():
-        for model, metrics in models_data.items():
-            data.append({
-                'Frequency': freq,
-                'Model': model,
-                'sMAPE': metrics['SMAPE'],
-                'Training Time (s)': metrics['Training Time']
-            })
 
+    for suffix in suffixes:
+        for model, model_type in models.items():
+            base_path = os.path.join(
+                os.getcwd(),
+                f'models/{dataset}/{suffix}' if model_type != 'stats' else f'models/{dataset}'
+            )
+            for freq in frequencies:
+                folder = f'{model_type}_{freq}'
+                metadata_path = os.path.join(base_path, folder, f'{model}_metadata.json')
+
+                if os.path.exists(metadata_path):
+                    with open(metadata_path, 'r') as f:
+                        metadata = json.load(f)
+                        smape = metadata.get('SMAPE', float('nan'))
+                        training_time = metadata.get('time_to_train', float('nan'))
+                else:
+                    smape = None
+                    training_time = None
+
+                data.append({
+                    'Frequency': freq,
+                    'Model': model,
+                    'Suffix': suffix,
+                    'Metric': 'sMAPE',
+                    'Value': smape
+                })
+                data.append({
+                    'Frequency': freq,
+                    'Model': model,
+                    'Suffix': suffix,
+                    'Metric': 'Training Time (s)',
+                    'Value': training_time
+                })
+
+    # Convert to DataFrame
     metrics_df = pd.DataFrame(data)
+
+    # Pivot table to create MultiIndex columns
+    metrics_df = metrics_df.pivot(index=['Frequency', 'Model'], columns=['Suffix', 'Metric'], values='Value')
+
     return metrics_df
+
