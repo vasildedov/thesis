@@ -43,7 +43,7 @@ models = {
 
 for model, model_type in models.items():
     total_smape, smape_df = calculate_weighted_smape_and_df(model, model_type,
-                                                            dataset+'/'+sufix if model_type=='dl' else dataset,
+                                                            dataset+'/'+sufix if model_type!='stats' else dataset,
                                                             frequencies, weights)
     results[model] = total_smape
     dfs[model] = smape_df

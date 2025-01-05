@@ -8,7 +8,7 @@ from sklearn.multioutput import MultiOutputRegressor
 
 class LGBMModel:
     def __init__(self, hyper_parametrize=False, direct=False):
-        self.model = MultiOutputRegressor(lgb.LGBMRegressor())
+        self.model = MultiOutputRegressor(lgb.LGBMRegressor()) if direct else lgb.LGBMRegressor()
         self.hyper_parametrize = hyper_parametrize
         self.direct = direct
 
