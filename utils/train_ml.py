@@ -7,7 +7,7 @@ from utils.helper import calculate_smape, calculate_mape
 
 
 def train_and_save_model(model, model_name, X_train, y_train, X_test, y_test, horizon, freq, look_back,
-                         retrain=True, dataset='m4'):
+                         retrain=True, dataset='m4', direct=False):
     """
     Train a model, save it, and save its metadata.
     """
@@ -27,7 +27,7 @@ def train_and_save_model(model, model_name, X_train, y_train, X_test, y_test, ho
         print(f"{model_name} model loaded successfully.")
 
         # Predict and evaluate using the existing model
-        y_pred = recursive_predict(model, X_test, horizon)
+        y_pred = recursive_predict(model, X_test, horizon) if not direct else model.predict(X_test)
         if dataset=='m4':
             evaluation_df = M4Evaluation.evaluate('data', freq, y_pred)
             evaluation = evaluation_df.to_dict()
@@ -50,7 +50,7 @@ def train_and_save_model(model, model_name, X_train, y_train, X_test, y_test, ho
     end_time = time.time()
 
     # Save model
-    if model_name == "LGBM":
+    if model_name == "LGBM" and not direct:
         model.model.booster_.save_model(model_path)
     elif model_name == "XGB":
         model.model.save_model(model_path)
@@ -59,7 +59,7 @@ def train_and_save_model(model, model_name, X_train, y_train, X_test, y_test, ho
     print(f"{model_name} model saved to {model_path}")
 
     # Predict and evaluate
-    y_pred = recursive_predict(model, X_test, horizon)
+    y_pred = recursive_predict(model, X_test, horizon) if not direct else model.predict(X_test)
     if dataset == 'm4':
         evaluation_df = M4Evaluation.evaluate('data', freq, y_pred)
         evaluation = evaluation_df.to_dict()

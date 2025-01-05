@@ -9,8 +9,9 @@ from utils.helper import calculate_smape
 # Choose the frequency
 freq = 'Other'
 retrain = False
-# Load train and test data
+direct = True
 
+# Load train and test data
 train, test, horizon = train_test_split(freq)
 look_back = 2*horizon
 
@@ -22,12 +23,12 @@ y_test = test['y'].values.reshape(test['unique_id'].nunique(), horizon)
 
 # ===== Models =====
 # LightGBM
-lgbm_model = LGBMModel()
-y_pred_lgbm, eval_lgbm = train_and_save_model(lgbm_model, "LGBM", X_train, y_train, X_test, y_test, horizon, freq, look_back, retrain, 'm3')
+lgbm_model = LGBMModel(direct=direct)
+y_pred_lgbm, eval_lgbm = train_and_save_model(lgbm_model, "LGBM", X_train, y_train, X_test, y_test, horizon, freq, look_back, retrain, 'm3', direct)
 
 # XGBoost
-xgb_model = XGBModel()
-y_pred_xgb, eval_xgb = train_and_save_model(xgb_model, "XGB", X_train, y_train, X_test, y_test, horizon, freq, look_back, retrain, 'm3')
+xgb_model = XGBModel(direct=direct)
+y_pred_xgb, eval_xgb = train_and_save_model(xgb_model, "XGB", X_train, y_train, X_test, y_test, horizon, freq, look_back, retrain, 'm3', direct)
 
 # Ensemble predictions
 y_pred_ens = ensemble_predict([lgbm_model, xgb_model], X_test, horizon)
