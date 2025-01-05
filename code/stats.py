@@ -1,43 +1,37 @@
 import numpy as np
-from datasetsforecast.m4 import M4, M4Info, M4Evaluation
-from utils.preprocess_m4 import train_test_split, truncate_series
+from datasetsforecast.m4 import M4Evaluation
 from utils.train_stats import train_and_forecast
 import os
 import time
 import json
 from datetime import datetime
+from utils.stats_params import get_params
+from utils.helper import calculate_smape, calculate_mape
 
-# Choose the frequency
+dataset = 'm4'
 freq = 'Yearly'  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Weekly', 'Daily', 'Hourly'
-# Model type can be 'ARIMA' or 'SARIMA'
 model_type = 'SARIMA'
 
-if freq == 'Yearly':
-    order, seasonal_order, max_length = (2, 1, 1), (1, 1, 0, 12), None
-elif freq == 'Quarterly':
-    order, seasonal_order, max_length = (3, 1, 1), (1, 1, 0, 4), None
-elif freq == 'Monthly':
-    order, seasonal_order, max_length = (6, 1, 1), (1, 1, 0, 12), 120
-elif freq == 'Weekly':
-    order, seasonal_order, max_length = (5, 1, 1), (1, 1, 0, 52), None
-elif freq == 'Daily':
-    order, seasonal_order, max_length = (5, 1, 1), (1, 1, 0, 7), 200
-elif freq == 'Hourly':
-    order, seasonal_order, max_length = (24, 1, 1), (0, 1, 1, 24), None
-else:
-    raise ValueError("Unsupported frequency. Choose a valid M4 frequency.")
+order, seasonal_order, max_length = get_params(dataset, freq, model_type)
 
-if model_type == 'ARIMA':
-    seasonal_order = None
+if dataset == 'm3':
+    from utils.preprocess_m3 import train_test_split
+elif dataset == 'm4':
+    from utils.preprocess_m4 import train_test_split, truncate_series
+elif dataset == 'tourism':
+    from utils.preprocess_tourism import train_test_split
 
 # Load data
 train, test, horizon = train_test_split(freq)
+if dataset != 'm4':
+    train.set_index('ds', inplace=True)
+
 # Truncate series if necessary
 if max_length is not None:
     train = truncate_series(train, max_length)
 
 # Define the folder to save all models
-model_folder = f"models/m4/stats_{freq.lower()}/"
+model_folder = f"models/{dataset}/stats_{freq.lower()}/"
 os.makedirs(model_folder, exist_ok=True)
 
 # Using parallel processing to speed up training and forecasting
@@ -65,8 +59,11 @@ y_pred = np.array(forecasts)
 y_true = test['y'].values.reshape(-1, horizon)
 
 # Evaluate forecasts
-evaluation = M4Evaluation.evaluate('data', freq, y_pred)
-print('Evaluation:\n', evaluation)
+evaluation={}
+evaluation['SMAPE'] = calculate_smape(y_true, y_pred)
+print('SMAPE:\n', round(evaluation['SMAPE'], 2))
+evaluation['MAPE'] = calculate_mape(y_true, y_pred)
+print('MAPE:\n', round(evaluation['MAPE'], 2))
 
 # Save evaluation metadata
 metadata_path = os.path.join(model_folder, f"{model_type.lower()}_metadata.json")
@@ -76,7 +73,8 @@ metadata = {
     "order": order,
     "seasonal_order": seasonal_order,
     "horizon": horizon,
-    "SMAPE": evaluation['SMAPE'][0],
+    "SMAPE": round(evaluation['SMAPE'], 2),
+    "MAPE": round(evaluation['MAPE'], 2),
     "time_to_train": round(end_overall_time-start_overall_time, 2),
     "timestamp": datetime.now().isoformat()
 }
