@@ -9,7 +9,7 @@ from utils.stats_params import get_params
 from utils.helper import calculate_smape, calculate_mape
 
 dataset = 'm4'
-freq = 'Yearly'  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Weekly', 'Daily', 'Hourly'
+freq = 'Monthly'  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Weekly', 'Daily', 'Hourly'
 model_type = 'SARIMA'
 
 order, seasonal_order, max_length = get_params(dataset, freq, model_type)
@@ -31,7 +31,7 @@ if max_length is not None:
     train = truncate_series(train, max_length)
 
 # Define the folder to save all models
-model_folder = f"models/{dataset}/stats_{freq.lower()}/"
+model_folder = f"models/{dataset}/recursive/stats_{freq.lower()}/"
 os.makedirs(model_folder, exist_ok=True)
 
 # Using parallel processing to speed up training and forecasting

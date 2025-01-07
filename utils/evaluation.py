@@ -49,7 +49,7 @@ def calculate_smape_per_frequency(models, dataset, frequencies):
         for model, model_type in models.items():
             base_path = os.path.join(
                 os.getcwd(),
-                f'models/{dataset}/{suffix}' if model_type != 'stats' else f'models/{dataset}'
+                f'models/{dataset}/{suffix}'
             )
             for freq in frequencies:
                 folder = f'{model_type}_{freq}'

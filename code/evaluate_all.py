@@ -37,13 +37,13 @@ models = {
     'timeseriestransformer': 'dl',
     'xlstm': 'dl',
     # 'ensemble': 'dl',
-    # 'sarima': 'stats',
+    'sarima': 'stats',
     'arima': 'stats'
 }
 
 for model, model_type in models.items():
     total_smape, smape_df = calculate_weighted_smape_and_df(model, model_type,
-                                                            dataset+'/'+sufix if model_type!='stats' else dataset,
+                                                            dataset+'/'+sufix,
                                                             frequencies, weights)
     results[model] = total_smape
     dfs[model] = smape_df
