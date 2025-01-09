@@ -11,7 +11,11 @@ def train_and_save_model(model, model_name, X_train, y_train, X_test, y_test, ho
     """
     Train a model, save it, and save its metadata.
     """
-    model_folder = f'models/{dataset}/ml_{freq.lower()}/'
+    if direct:
+        sufix = 'direct'
+    else:
+        sufix = 'recursive'
+    model_folder = f'models/{dataset}/{sufix}/ml_{freq.lower()}/'
     os.makedirs(model_folder, exist_ok=True)
 
     model_path = f'{model_folder}{model_name.lower()}.txt'

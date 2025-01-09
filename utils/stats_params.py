@@ -1,22 +1,21 @@
 def get_params(dataset, freq, model_type):
-    max_length = None
     asfreq = None
 
     # Consistent parameters across datasets
     if freq in ['Yearly', 'yearly']:
-        order, seasonal_order, max_length, asfreq = (2, 1, 1), (0, 0, 0, 0), None, 'YE'
+        order, seasonal_order, asfreq = (2, 1, 1), (0, 0, 0, 0), 'YE'
     elif freq in ['Quarterly', 'quarterly']:
-        order, seasonal_order, max_length, asfreq = (2, 1, 1), (0, 1, 1, 4), None, 'QE'
+        order, seasonal_order, asfreq = (2, 1, 1), (0, 1, 1, 4), 'QE'
     elif freq in ['Monthly', 'monthly']:
-        order, seasonal_order, max_length, asfreq = (2, 1, 1), (0, 1, 1, 12), 120, 'ME'
-    elif freq in ['Weekly', 'weekly']:
-        order, seasonal_order, max_length, asfreq = (1, 1, 1), (0, 0, 0, 52), None, None
-    elif freq in ['Daily', 'daily']:
-        order, seasonal_order, max_length, asfreq = (1, 1, 1), (0, 0, 0, 7), 200, None
-    elif freq in ['Hourly', 'hourly']:
-        order, seasonal_order, max_length, asfreq = (1, 1, 1), (0, 1, 1, 24), None, None
-    elif freq in ['Other', 'other']:
-        order, seasonal_order, max_length, asfreq = (1, 1, 1), (0, 0, 0, 0), None, None
+        order, seasonal_order, asfreq = (2, 1, 1), (0, 1, 1, 12), 'ME'
+    elif freq in ['Weekly']:
+        order, seasonal_order, asfreq = (1, 1, 1), (0, 1, 1, 52), None
+    elif freq in ['Daily']:
+        order, seasonal_order, asfreq = (1, 1, 1), (0, 1, 1, 7), None
+    elif freq in ['Hourly']:
+        order, seasonal_order, asfreq = (1, 1, 1), (0, 1, 1, 24), None
+    elif freq in ['Other']:
+        order, seasonal_order, asfreq = (1, 1, 1), (0, 0, 0, 0), None
     else:
         raise ValueError("Unsupported frequency. Choose a valid frequency.")
 
@@ -25,4 +24,4 @@ def get_params(dataset, freq, model_type):
         seasonal_order = (0, 0, 0, 0)  # Explicitly disable seasonal components for ARIMA
 
     # Return parameters based on the dataset and frequency
-    return order, seasonal_order, max_length if dataset == 'm4' else asfreq
+    return order, seasonal_order, asfreq

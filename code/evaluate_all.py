@@ -30,15 +30,15 @@ results = {}
 dfs = {}
 
 models = {
+    'arima': 'stats',
+    'sarima': 'stats',
     'lgbm': 'ml',
     'xgb': 'ml',
     'simplernn': 'dl',
     'complexlstm': 'dl',
     'timeseriestransformer': 'dl',
-    'xlstm': 'dl',
-    # 'ensemble': 'dl',
-    'sarima': 'stats',
-    'arima': 'stats'
+    'xlstm': 'dl'
+    # 'ensemble': 'dl'
 }
 
 for model, model_type in models.items():
@@ -79,6 +79,9 @@ os.makedirs(output_folder, exist_ok=True)
 for freq, df in frequency_dfs.items():
     # Reset index and prepare the DataFrame for LaTeX
     df = df.reset_index().fillna('N/A')
+    df['Model'] = df['Model'].replace({'arima': 'ARIMA', 'sarima': 'SARIMA', 'complexlstm': 'LSTM', 'simplernn': 'RNN',
+                                       'timeseriestransformer': 'Transformer', 'xgb': 'XGBoost', 'lgbm': 'LightGBM',
+                                       'xlstm': 'xLSTM'})
 
     # Convert DataFrame to LaTeX with multicolumn for MultiIndex columns
     latex_table = df.to_latex(index=False,

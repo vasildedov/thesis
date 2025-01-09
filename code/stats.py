@@ -8,16 +8,16 @@ from datetime import datetime
 from utils.stats_params import get_params
 from utils.helper import calculate_smape, calculate_mape
 
-dataset = 'm4'
-freq = 'Monthly'  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Weekly', 'Daily', 'Hourly'
+dataset = 'tourism'
+freq = 'monthly'  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Weekly', 'Daily', 'Hourly'
 model_type = 'SARIMA'
 
-order, seasonal_order, max_length = get_params(dataset, freq, model_type)
+order, seasonal_order, asfreq = get_params(dataset, freq, model_type)
 
 if dataset == 'm3':
     from utils.preprocess_m3 import train_test_split
 elif dataset == 'm4':
-    from utils.preprocess_m4 import train_test_split, truncate_series
+    from utils.preprocess_m4 import train_test_split
 elif dataset == 'tourism':
     from utils.preprocess_tourism import train_test_split
 
@@ -26,20 +26,15 @@ train, test, horizon = train_test_split(freq)
 if dataset != 'm4':
     train.set_index('ds', inplace=True)
 
-# Truncate series if necessary
-if max_length is not None:
-    train = truncate_series(train, max_length)
-
 # Define the folder to save all models
 model_folder = f"models/{dataset}/recursive/stats_{freq.lower()}/"
 os.makedirs(model_folder, exist_ok=True)
 
-# Using parallel processing to speed up training and forecasting
 start_overall_time = time.time()
-
+# Using parallel processing to speed up training and forecasting
 forecasts = [
     train_and_forecast(
-        train[train['unique_id'] == uid]['y'],
+        train[train['unique_id'] == uid]['y'].asfreq(asfreq) if (asfreq and dataset != 'm4') else train[train['unique_id'] == uid]['y'],
         unique_id=uid,
         model_type=model_type,
         order=order,

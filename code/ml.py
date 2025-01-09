@@ -6,8 +6,8 @@ from utils.models_ml import LGBMModel, XGBModel
 from utils.helper import calculate_smape
 
 # Choose the frequency
-freq = 'Yearly'
-retrain = False
+freq = 'Daily'
+retrain = True
 direct = True
 dataset = 'm4'
 if dataset == 'm3':
@@ -19,7 +19,7 @@ elif dataset == 'tourism':
 
 # Load train and test data
 train, test, horizon = train_test_split(freq)
-look_back = 2*horizon if not dataset == 'tourism' and freq == 'yearly' else 7
+look_back = 2*horizon if not (dataset == 'tourism' and freq == 'yearly') else 7
 
 # Generate windows for training
 X_train, y_train = create_train_windows(train, look_back, horizon)
