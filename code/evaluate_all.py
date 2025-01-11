@@ -3,7 +3,7 @@ import os
 import pandas as pd
 from utils.evaluation import calculate_weighted_smape_and_df, calculate_smape_per_frequency
 
-dataset = 'tourism'
+dataset = 'm3'
 direct = False
 if direct:
     sufix = 'direct'

@@ -5,14 +5,14 @@ import os
 import time
 import json
 from datetime import datetime
-from utils.stats_params import get_params
+from utils.params_stats import get_params
 from utils.helper import calculate_smape, calculate_mape
 
 dataset = 'tourism'
 freq = 'monthly'  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Weekly', 'Daily', 'Hourly'
 model_type = 'SARIMA'
 
-order, seasonal_order, asfreq = get_params(dataset, freq, model_type)
+order, seasonal_order, asfreq = get_params(dataset, freq)
 
 if dataset == 'm3':
     from utils.preprocess_m3 import train_test_split

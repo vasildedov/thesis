@@ -5,17 +5,24 @@ from utils.train_ml import train_and_save_model, ensemble_predict
 from utils.models_ml import LGBMModel, XGBModel
 from utils.helper import calculate_smape
 
-# Choose the frequency
-freq = 'Daily'
-retrain = True
-direct = True
+
+# ===== Dataset =====
 dataset = 'm4'
+freq = 'Hourly'
+
 if dataset == 'm3':
     from utils.preprocess_m3 import train_test_split
+    freq = freq.capitalize()
 elif dataset == 'm4':
     from utils.preprocess_m4 import train_test_split
+    freq = freq.capitalize()
 elif dataset == 'tourism':
     from utils.preprocess_tourism import train_test_split
+    freq = freq.lower()
+
+# ===== Parameters =====
+retrain = True
+direct = True
 
 # Load train and test data
 train, test, horizon = train_test_split(freq)
