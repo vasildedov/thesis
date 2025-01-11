@@ -10,8 +10,8 @@ from utils.helper import save_metadata, calculate_smape
 torch.cuda.empty_cache()
 
 # ===== Dataset =====
-dataset = 'tourism'
-freq = 'yearly'
+dataset = 'm3'
+freq = 'monthly'
 
 if dataset == 'm3':
     from utils.preprocess_m3 import train_test_split
@@ -27,7 +27,7 @@ elif dataset == 'tourism':
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 retrain_mode = True
 full_load = True
-direct = False  # direct or recursive prediction of horizon steps
+direct = True  # direct or recursive prediction of horizon steps
 
 epochs = 10
 batch_size = 256
