@@ -3,7 +3,7 @@ import os
 import pandas as pd
 from utils.evaluation import calculate_weighted_smape_and_df, calculate_smape_per_frequency
 
-dataset = 'm3'
+dataset = 'tourism'
 direct = False
 if direct:
     sufix = 'direct'
@@ -97,3 +97,27 @@ for freq, df in frequency_dfs.items():
         f.write(latex_table)
 
     print(f"Saved LaTeX table for {freq} to {output_path}")
+
+# Define the stats model parameters as a DataFrame
+stats_params = pd.DataFrame({
+    'Frequency': ['Yearly', 'Quarterly', 'Monthly', 'Weekly', 'Daily', 'Hourly', 'Other'],
+    'Order (p, d, q)': [(2, 1, 1), (2, 1, 1), (2, 1, 1), (1, 1, 1), (1, 1, 1), (1, 1, 1), (1, 1, 1)],
+    'Seasonal Order (P, D, Q, s)': [(0, 0, 0, 0), (0, 1, 1, 4), (0, 1, 1, 12), (0, 1, 1, 52), (0, 1, 1, 7), (0, 1, 1, 24), (0, 0, 0, 0)],
+})
+
+# Display the DataFrame
+print(stats_params)
+
+latex_table = stats_params.to_latex(index=False,
+                              caption=f"Parameters for (S)ARIMA models based on frequency",
+                              label=f"tab:stats_params",
+                              float_format="%.2f"  # Ensures numbers have at most 2 decimal places
+                              )
+
+output_folder = os.path.join(os.getcwd(), f'models/metrics_results')
+os.makedirs(output_folder, exist_ok=True)
+# Save LaTeX table to a file
+output_path = os.path.join(output_folder, f"stats_params.tex")
+with open(output_path, 'w') as f:
+    f.write(latex_table)
+
