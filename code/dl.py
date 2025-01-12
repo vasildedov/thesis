@@ -11,14 +11,12 @@ torch.cuda.empty_cache()
 
 # ===== Dataset =====
 dataset = 'm3'
-freq = 'monthly'
+freq = 'monthly'.capitalize()
 
 if dataset == 'm3':
     from utils.preprocess_m3 import train_test_split
-    freq = freq.capitalize()
 elif dataset == 'm4':
     from utils.preprocess_m4 import train_test_split
-    freq = freq.capitalize()
 elif dataset == 'tourism':
     from utils.preprocess_tourism import train_test_split
     freq = freq.lower()
@@ -27,19 +25,27 @@ elif dataset == 'tourism':
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 retrain_mode = True
 full_load = True
-direct = True  # direct or recursive prediction of horizon steps
+direct = False  # direct or recursive prediction of horizon steps
 
 epochs = 10
 batch_size = 256
-hidden_size = 128  # xlstm embedding_dim and transformers d_model are 1/2 of lstm_hidden_size
-transformers_n_heads = 8
 num_layers = 3
-dropout = 0.3
+dropout = 0.1  # no drop-out
 criterion = torch.nn.MSELoss()  # Can use nn.SmoothL1Loss(beta=1.0) as alternative
+
+# rnns and lstms
+hidden_size = 128  # xlstm embedding_dim and transformers d_model are 1/2 of lstm_hidden_size
+# transformers
+d_model = 64
+n_heads = 8
+dim_feedforward = 128
+# xlstm
+embedding_dim = 64
 
 # ===== Load Data =====
 train, test, horizon = train_test_split(freq)
 look_back = 2*horizon if not (dataset == 'tourism' and freq == 'yearly') else 7
+output_size = horizon if direct else 1
 
 if not full_load:
     num_series = 10
@@ -58,16 +64,16 @@ y_train = y_train.to(device)
 models = [
     ("SimpleRNN", SimpleRNN,
      {"input_size": 1, "hidden_size": hidden_size, "num_layers": num_layers, "dropout": dropout,
-      "output_size": horizon if direct else 1, "direct": direct}),
+      "output_size": output_size, "direct": direct}),
     ("ComplexLSTM", ComplexLSTM,
      {"input_size": 1, "hidden_size": hidden_size, "num_layers": num_layers, "dropout": dropout,
-      "output_size": horizon if direct else 1, "direct": direct}),
+      "output_size": output_size, "direct": direct}),
     ("TimeSeriesTransformer", TimeSeriesTransformer,
-     {"input_size": 1, "d_model": int(hidden_size/2), "nhead": transformers_n_heads, "num_layers": num_layers,
-      "dim_feedforward": hidden_size, "dropout": dropout, "output_size": horizon if direct else 1, "direct": direct}),
+     {"input_size": 1, "d_model": d_model, "nhead": n_heads, "num_layers": num_layers,
+      "dim_feedforward": dim_feedforward, "dropout": dropout, "output_size": output_size, "direct": direct}),
     ("xLSTM", xLSTMTimeSeriesModel,
-     {"input_size": 1, "output_size": horizon if direct else 1, "embedding_dim": int(hidden_size/2), "direct": direct,
-      "xlstm_stack": get_stack_cfg(int(hidden_size/2), look_back, device, fix_inits_bool=False)})
+     {"input_size": 1, "output_size": output_size, "embedding_dim": embedding_dim, "direct": direct,
+      "xlstm_stack": get_stack_cfg(embedding_dim, look_back, device, fix_inits_bool=False)})
 ]
 
 # ensemble_predictions = []
