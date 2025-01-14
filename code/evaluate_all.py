@@ -1,14 +1,11 @@
 import json
 import os
 import pandas as pd
-from utils.evaluation import calculate_weighted_smape_and_df, calculate_smape_per_frequency
+from utils.evaluation import (calculate_weighted_smape_and_df, calculate_smape_per_frequency,
+                              calculate_weighted_metrics, compare_models_statistical_significance)
 
-dataset = 'm3'
-direct = False
-if direct:
-    sufix = 'direct'
-else:
-    sufix = 'recursive'
+dataset = 'm4'
+
 # Define frequencies and corresponding weights
 if dataset == 'm3':
     frequencies = ['other', 'monthly', 'quarterly', 'yearly']
@@ -21,13 +18,8 @@ else:
     num_series = [366, 427, 518]
 
 all_series = sum(num_series)
-
 # Construct the weights dictionary
 weights = {freq: num / all_series for freq, num in zip(frequencies, num_series)}
-
-# Calculate SMAPE for all models
-results = {}
-dfs = {}
 
 models = {
     'arima': 'stats',
@@ -37,39 +29,64 @@ models = {
     'simplernn': 'dl',
     'complexlstm': 'dl',
     'timeseriestransformer': 'dl',
-    'xlstm': 'dl'
+    'xlstm_1_0': 'dl',
+    'xlstm_1_1': 'dl'
     # 'ensemble': 'dl'
 }
+
+sufix = 'direct'  
+# Calculate SMAPE for all models
+results_overall_direct = {}
+results_per_frequency_direct = {}
 
 for model, model_type in models.items():
     total_smape, smape_df = calculate_weighted_smape_and_df(model, model_type,
                                                             dataset+'/'+sufix,
                                                             frequencies, weights)
-    results[model] = total_smape
-    dfs[model] = smape_df
+    results_overall_direct[model] = total_smape
+    results_per_frequency_direct[model] = smape_df
 
-# Compare the results
-print("\nComparison:")
-for model, smape in results.items():
-    print(f"{model.upper()} Total Weighted SMAPE: {smape:.2f}")
+# Perform statistical significance testing
+pairwise_comparison_df_direct = compare_models_statistical_significance(results_per_frequency_direct, test_type='t-test')
+
+# Display results
+print("Pairwise Statistical Significance Results:")
+print(pairwise_comparison_df_direct)
 
 
-# # Optionally save all DataFrames to CSVs
-# output_folder = os.path.join(os.getcwd(), f'models/smape_results/{dataset}')
-# os.makedirs(output_folder, exist_ok=True)
-# for model, smape_df in dfs.items():
-#     output_path = os.path.join(output_folder, f"{model}_smape.csv")
-#     smape_df.to_csv(output_path, index=False)
-#     print(f"Saved SMAPE DataFrame for {model} to {output_path}")
+sufix = 'recursive'  
+# Calculate SMAPE for all models
+results_overall_recursive = {}
+results_per_frequency_recursive = {}
 
-# Calculate SMAPE per frequency
-metrics_df = calculate_smape_per_frequency(models, dataset, frequencies)
+for model, model_type in models.items():
+    total_smape, smape_df = calculate_weighted_smape_and_df(model, model_type,
+                                                            dataset+'/'+sufix,
+                                                            frequencies, weights)
+    results_overall_recursive[model] = total_smape
+    results_per_frequency_recursive[model] = smape_df
+
+# Perform statistical significance testing
+pairwise_comparison_df_recursive = compare_models_statistical_significance(results_per_frequency_recursive, test_type='t-test')
+
+# Display results
+print("Pairwise Statistical Significance Results:")
+print(pairwise_comparison_df_recursive)
+
+
+# overall metrics
+metrics_per_dataset = calculate_weighted_metrics(models, dataset, frequencies, weights)
+print(metrics_per_dataset)
+
+
+# Calculate SMAPE per frequency - Latex tables
+metrics_per_frequency = calculate_smape_per_frequency(models, dataset, frequencies)
 # Display the DataFrame
 print("SMAPE per Frequency for Each Model:")
-print(metrics_df)
+print(metrics_per_frequency)
 
 # Split metrics_df into separate DataFrames based on frequency
-frequency_dfs = {freq: group.droplevel('Frequency') for freq, group in metrics_df.groupby('Frequency')}
+frequency_dfs = {freq: group.droplevel('Frequency') for freq, group in metrics_per_frequency.groupby('Frequency')}
 
 # Define output folder for LaTeX files
 output_folder = os.path.join(os.getcwd(), f'models/metrics_results/{dataset}/latex_by_frequency')
@@ -81,7 +98,7 @@ for freq, df in frequency_dfs.items():
     df = df.reset_index().fillna('N/A')
     df['Model'] = df['Model'].replace({'arima': 'ARIMA', 'sarima': 'SARIMA', 'complexlstm': 'LSTM', 'simplernn': 'RNN',
                                        'timeseriestransformer': 'Transformer', 'xgb': 'XGBoost', 'lgbm': 'LightGBM',
-                                       'xlstm': 'xLSTM'})
+                                       'xlstm_1_0': 'xLSTM(1:0)', 'xlstm_1_1': 'xLSTM(1:1)'})
 
     # Convert DataFrame to LaTeX with multicolumn for MultiIndex columns
     latex_table = df.to_latex(index=False,
