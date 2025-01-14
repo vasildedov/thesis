@@ -10,8 +10,8 @@ from utils.helper import save_metadata, calculate_smape
 torch.cuda.empty_cache()
 
 # ===== Dataset =====
-dataset = 'm3'
-freq = 'monthly'.capitalize()
+dataset = 'm4'
+freq = 'hourly'.capitalize()
 
 if dataset == 'm3':
     from utils.preprocess_m3 import train_test_split
@@ -30,7 +30,7 @@ direct = False  # direct or recursive prediction of horizon steps
 epochs = 10
 batch_size = 256
 num_layers = 3
-dropout = 0.1  # no drop-out
+dropout = 0.1
 criterion = torch.nn.MSELoss()  # Can use nn.SmoothL1Loss(beta=1.0) as alternative
 
 # rnns and lstms
@@ -40,6 +40,7 @@ d_model = 64
 n_heads = 8
 dim_feedforward = 128
 # xlstm
+ratio = '1_1'
 embedding_dim = 64
 
 # ===== Load Data =====
@@ -62,18 +63,18 @@ y_train = y_train.to(device)
 
 # ===== Models and Configurations =====
 models = [
-    ("SimpleRNN", SimpleRNN,
-     {"input_size": 1, "hidden_size": hidden_size, "num_layers": num_layers, "dropout": dropout,
-      "output_size": output_size, "direct": direct}),
-    ("ComplexLSTM", ComplexLSTM,
-     {"input_size": 1, "hidden_size": hidden_size, "num_layers": num_layers, "dropout": dropout,
-      "output_size": output_size, "direct": direct}),
-    ("TimeSeriesTransformer", TimeSeriesTransformer,
-     {"input_size": 1, "d_model": d_model, "nhead": n_heads, "num_layers": num_layers,
-      "dim_feedforward": dim_feedforward, "dropout": dropout, "output_size": output_size, "direct": direct}),
-    ("xLSTM", xLSTMTimeSeriesModel,
+    # ("SimpleRNN", SimpleRNN,
+    #  {"input_size": 1, "hidden_size": hidden_size, "num_layers": num_layers, "dropout": dropout,
+    #   "output_size": output_size, "direct": direct}),
+    # ("ComplexLSTM", ComplexLSTM,
+    #  {"input_size": 1, "hidden_size": hidden_size, "num_layers": num_layers, "dropout": dropout,
+    #   "output_size": output_size, "direct": direct}),
+    # ("TimeSeriesTransformer", TimeSeriesTransformer,
+    #  {"input_size": 1, "d_model": d_model, "nhead": n_heads, "num_layers": num_layers,
+    #   "dim_feedforward": dim_feedforward, "dropout": dropout, "output_size": output_size, "direct": direct}),
+    (f"xLSTM_{ratio}", xLSTMTimeSeriesModel,
      {"input_size": 1, "output_size": output_size, "embedding_dim": embedding_dim, "direct": direct,
-      "xlstm_stack": get_stack_cfg(embedding_dim, look_back, device, fix_inits_bool=False)})
+      "xlstm_stack": get_stack_cfg(embedding_dim, look_back, device, dropout, ratio=ratio)})
 ]
 
 # ensemble_predictions = []
@@ -138,7 +139,8 @@ for model_name, model_class, model_kwargs in models:
             "model_path": model_path,
             "time_to_train": round(duration, 2),
             "timestamp": datetime.now().isoformat(),
-            "num_series": num_series if not full_load else train['unique_id'].nunique()
+            "num_series": num_series if not full_load else train['unique_id'].nunique(),
+            "model_kwargs": str(model_kwargs)
         }
         save_metadata(metadata, metadata_path)
         print(f"{model_name} Metadata saved to {metadata_path}")
