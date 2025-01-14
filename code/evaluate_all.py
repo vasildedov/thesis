@@ -1,8 +1,7 @@
 import json
 import os
 import pandas as pd
-from utils.evaluation import (calculate_weighted_smape_and_df, calculate_smape_per_frequency,
-                              calculate_weighted_metrics, compare_models_statistical_significance)
+from utils.evaluation import calculate_metrics_per_frequency, calculate_weighted_metrics
 
 dataset = 'm4'
 
@@ -34,53 +33,13 @@ models = {
     # 'ensemble': 'dl'
 }
 
-sufix = 'direct'  
-# Calculate SMAPE for all models
-results_overall_direct = {}
-results_per_frequency_direct = {}
-
-for model, model_type in models.items():
-    total_smape, smape_df = calculate_weighted_smape_and_df(model, model_type,
-                                                            dataset+'/'+sufix,
-                                                            frequencies, weights)
-    results_overall_direct[model] = total_smape
-    results_per_frequency_direct[model] = smape_df
-
-# Perform statistical significance testing
-pairwise_comparison_df_direct = compare_models_statistical_significance(results_per_frequency_direct, test_type='t-test')
-
-# Display results
-print("Pairwise Statistical Significance Results:")
-print(pairwise_comparison_df_direct)
-
-
-sufix = 'recursive'  
-# Calculate SMAPE for all models
-results_overall_recursive = {}
-results_per_frequency_recursive = {}
-
-for model, model_type in models.items():
-    total_smape, smape_df = calculate_weighted_smape_and_df(model, model_type,
-                                                            dataset+'/'+sufix,
-                                                            frequencies, weights)
-    results_overall_recursive[model] = total_smape
-    results_per_frequency_recursive[model] = smape_df
-
-# Perform statistical significance testing
-pairwise_comparison_df_recursive = compare_models_statistical_significance(results_per_frequency_recursive, test_type='t-test')
-
-# Display results
-print("Pairwise Statistical Significance Results:")
-print(pairwise_comparison_df_recursive)
-
-
 # overall metrics
 metrics_per_dataset = calculate_weighted_metrics(models, dataset, frequencies, weights)
 print(metrics_per_dataset)
 
 
 # Calculate SMAPE per frequency - Latex tables
-metrics_per_frequency = calculate_smape_per_frequency(models, dataset, frequencies)
+metrics_per_frequency = calculate_metrics_per_frequency(models, dataset, frequencies)
 # Display the DataFrame
 print("SMAPE per Frequency for Each Model:")
 print(metrics_per_frequency)
@@ -115,26 +74,27 @@ for freq, df in frequency_dfs.items():
 
     print(f"Saved LaTeX table for {freq} to {output_path}")
 
-# Define the stats model parameters as a DataFrame
-stats_params = pd.DataFrame({
-    'Frequency': ['Yearly', 'Quarterly', 'Monthly', 'Weekly', 'Daily', 'Hourly', 'Other'],
-    'Order (p, d, q)': [(2, 1, 1), (2, 1, 1), (2, 1, 1), (1, 1, 1), (1, 1, 1), (1, 1, 1), (1, 1, 1)],
-    'Seasonal Order (P, D, Q, s)': [(0, 0, 0, 0), (0, 1, 1, 4), (0, 1, 1, 12), (0, 1, 1, 52), (0, 1, 1, 7), (0, 1, 1, 24), (0, 0, 0, 0)],
-})
-
-# Display the DataFrame
-print(stats_params)
-
-latex_table = stats_params.to_latex(index=False,
-                              caption=f"Parameters for (S)ARIMA models based on frequency",
-                              label=f"tab:stats_params",
-                              float_format="%.2f"  # Ensures numbers have at most 2 decimal places
-                              )
-
-output_folder = os.path.join(os.getcwd(), f'models/metrics_results')
-os.makedirs(output_folder, exist_ok=True)
-# Save LaTeX table to a file
-output_path = os.path.join(output_folder, f"stats_params.tex")
-with open(output_path, 'w') as f:
-    f.write(latex_table)
-
+#
+# # Define the stats model parameters as a DataFrame
+# stats_params = pd.DataFrame({
+#     'Frequency': ['Yearly', 'Quarterly', 'Monthly', 'Weekly', 'Daily', 'Hourly', 'Other'],
+#     'Order (p, d, q)': [(2, 1, 1), (2, 1, 1), (2, 1, 1), (1, 1, 1), (1, 1, 1), (1, 1, 1), (1, 1, 1)],
+#     'Seasonal Order (P, D, Q, s)': [(0, 0, 0, 0), (0, 1, 1, 4), (0, 1, 1, 12), (0, 1, 1, 52), (0, 1, 1, 7), (0, 1, 1, 24), (0, 0, 0, 0)],
+# })
+#
+# # Display the DataFrame
+# print(stats_params)
+#
+# latex_table = stats_params.to_latex(index=False,
+#                               caption=f"Parameters for (S)ARIMA models based on frequency",
+#                               label=f"tab:stats_params",
+#                               float_format="%.2f"  # Ensures numbers have at most 2 decimal places
+#                               )
+#
+# output_folder = os.path.join(os.getcwd(), f'models/metrics_results')
+# os.makedirs(output_folder, exist_ok=True)
+# # Save LaTeX table to a file
+# output_path = os.path.join(output_folder, f"stats_params.tex")
+# with open(output_path, 'w') as f:
+#     f.write(latex_table)
+#
