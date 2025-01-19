@@ -8,11 +8,11 @@ from datetime import datetime
 from utils.params_stats import get_params
 from utils.helper import calculate_smape, calculate_mape
 
-dataset = 'tourism'
-freq = 'monthly'  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Weekly', 'Daily', 'Hourly'
+dataset = 'm4'
+freq = 'hourly'.capitalize()  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Weekly', 'Daily', 'Hourly'
 model_type = 'SARIMA'
 
-order, seasonal_order, asfreq = get_params(dataset, freq)
+order, seasonal_order, asfreq = get_params(freq, model_type)
 
 if dataset == 'm3':
     from utils.preprocess_m3 import train_test_split
@@ -20,6 +20,7 @@ elif dataset == 'm4':
     from utils.preprocess_m4 import train_test_split
 elif dataset == 'tourism':
     from utils.preprocess_tourism import train_test_split
+    freq = freq.lower()
 
 # Load data
 train, test, horizon = train_test_split(freq)
@@ -44,7 +45,6 @@ forecasts = [
     )
     for uid in train['unique_id'].unique()
 ]
-
 end_overall_time = time.time()
 
 # Convert forecasts to numpy array

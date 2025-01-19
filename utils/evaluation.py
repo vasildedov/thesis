@@ -13,6 +13,9 @@ def load_metadata(base_path, model, model_type, frequency):
             smape = metadata.get('SMAPE', float('nan'))
             training_time = metadata.get('time_to_train', float('nan'))
     except FileNotFoundError:
+        if model == 'sarima':  # Fallback to ARIMA if SARIMA is missing
+            print(f"SARIMA metadata not found for {model} at {metadata_path}. Attempting ARIMA...")
+            return load_metadata(base_path, 'arima', model_type, frequency)
         print(f"Metadata file not found: {metadata_path}")
         smape, training_time = float('nan'), float('nan')
 

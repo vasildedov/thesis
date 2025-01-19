@@ -48,19 +48,15 @@ def get_stack_cfg(embedding_dim, look_back, device, dropout, ratio="1_1", fix_in
         raise ValueError(f"Invalid ratio format: {ratio}. Must be in 'm:s' format, e.g., '7:1', '1:1', or '1:0'.")
 
     # Handle special cases for ratios
-    if ratio == "1_1":
-        total_blocks = 1  # Fixed number of blocks
-        slstm_indices = list(range(total_blocks))  # Every block includes sLSTM
-    elif ratio == "1_0":
+    if ratio == "1_0":
         total_blocks = 4  # Fixed number of blocks
-        slstm_indices = []  # No sLSTM blocks
     else:
-        total_blocks = max(mlstm_count, slstm_count)
-        slstm_indices = (
-            list(range(0, total_blocks, total_blocks // slstm_count))[:slstm_count]
-            if slstm_count > 0
-            else []
-        )
+        total_blocks = mlstm_count + slstm_count
+    slstm_indices = (
+        list(range(1, total_blocks, total_blocks // slstm_count))[:slstm_count]
+        if slstm_count > 0
+        else []
+    )
 
     # Create xLSTM configuration
     cfg = xLSTMBlockStackConfig(
@@ -87,9 +83,7 @@ def get_stack_cfg(embedding_dim, look_back, device, dropout, ratio="1_1", fix_in
                 dropout=dropout,
                 embedding_dim=embedding_dim,
             ),
-        )
-        if slstm_count > 0 or ratio == '1:1'
-        else None,  # Include sLSTM block only if relevant
+        ),
         context_length=look_back + 1,
         num_blocks=total_blocks,
         embedding_dim=embedding_dim,

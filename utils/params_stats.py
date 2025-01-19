@@ -12,8 +12,7 @@ def get_params(freq, model_type):
 
     # Handle case insensitivity for frequency
     freq = freq.capitalize()
-
-    if freq not in freq_params:
+    if freq not in list(freq_params.keys()):
         raise ValueError("Unsupported frequency. Choose a valid frequency.")
 
     order, seasonal_order, asfreq = freq_params[freq]
