@@ -98,7 +98,7 @@ for model_name, model_class, model_kwargs in models:
     y_true = test['y'].values.reshape(num_series if not full_load else train['unique_id'].nunique(), horizon)
 
     if model is None:
-        print(f"No existing model found or retrain mode was enabled. Training a new {model_name}...")
+        print(f"No existing model found or retrain mode was enabled for {dataset} - {freq} - {ending}. Training a new {model_name}...")
         model = model_class(**model_kwargs).to(device)
 
         # Train and evaluate
