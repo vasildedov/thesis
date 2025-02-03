@@ -25,13 +25,19 @@ def create_sliding_windows(data, look_back, horizon, step=1, target='OT'):
 
     return np.array(inputs), np.array(outputs)
 
-def train_test_split():
+def train_test_split(multivariate=True):
     ds = datasets.load_dataset("autogluon/chronos_datasets_extra", "ETTh", split="train", trust_remote_code=True)
     ds.set_format("numpy")  # sequences returned as numpy arrays
     ds_p = to_pandas(ds)
     etth1 = ds_p[ds_p['id']=='ETTh1']
-    etth1 = etth1.drop(columns=['id', 'timestamp'])
-    etth1 = etth1.reset_index(drop=True)
+    etth1 = etth1.drop(columns=['id'])
+    if multivariate:
+        etth1 = etth1.drop(columns=['timestamp'])
+        etth1 = etth1.reset_index(drop=True)
+
+    else:
+        etth1 = etth1[['OT', 'timestamp']]
+        etth1 = etth1.set_index('timestamp')
 
     train_ind = int(0.6*len(etth1))
     val_ind = train_ind+int(0.2*len(etth1))

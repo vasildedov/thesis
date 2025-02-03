@@ -8,10 +8,6 @@ def train_and_forecast(series, unique_id, model_type, order, seasonal_order, hor
     """Train the model and forecast, saving/loading models with parameter validation."""
     model_path = os.path.join(model_folder, f"{model_type.lower()}_{unique_id.lower()}.json")
 
-    # Ensure the series is not empty
-    if series.empty:
-        raise ValueError(f"Time series data for {unique_id} is empty. Cannot train or forecast.")
-
     if os.path.exists(model_path):
         print(f"Loading existing model for {unique_id}...")
         with open(model_path, "r") as f:

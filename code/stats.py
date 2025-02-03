@@ -1,5 +1,4 @@
 import numpy as np
-from datasetsforecast.m4 import M4Evaluation
 from utils.train_stats import train_and_forecast
 import os
 import time
@@ -8,9 +7,9 @@ from datetime import datetime
 from utils.params_stats import get_params
 from utils.helper import evaluate
 
-dataset = 'm4'
+dataset = 'etth1'
 freq = 'hourly'.capitalize()  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Weekly', 'Daily', 'Hourly'
-model_type = 'SARIMA'
+model_type = 'ARIMA'
 
 order, seasonal_order, asfreq = get_params(freq, model_type)
 
@@ -21,11 +20,19 @@ elif dataset == 'm4':
 elif dataset == 'tourism':
     from utils.preprocess_tourism import train_test_split
     freq = freq.lower()
+elif dataset == 'etth1':
+    from utils.preprocess_ett import train_test_split, get_windows
 
 # Load data
-train, test, horizon = train_test_split(freq)
-if dataset != 'm4':
-    train.set_index('ds', inplace=True)
+if dataset != 'etth1':
+    train, test, horizon = train_test_split(freq)
+    if dataset != 'm4':
+        train.set_index('ds', inplace=True)
+else:
+    train, val, test = train_test_split(multivariate=False)
+    horizon = 96
+    X_train, y_train, X_val, y_val, X_test, y_test = get_windows(train, val, test, 720, horizon)
+
 
 # Define the folder to save all models
 model_folder = f"models/{dataset}/recursive/stats_{freq.lower()}/"
@@ -33,25 +40,42 @@ os.makedirs(model_folder, exist_ok=True)
 
 start_overall_time = time.time()
 # Using parallel processing to speed up training and forecasting
-forecasts = [
-    train_and_forecast(
-        train[train['unique_id'] == uid]['y'].asfreq(asfreq) if (asfreq and dataset != 'm4') else train[train['unique_id'] == uid]['y'],
-        unique_id=uid,
-        model_type=model_type,
-        order=order,
-        seasonal_order=seasonal_order,
-        horizon=horizon,
-        model_folder=model_folder
-    )
-    for uid in train['unique_id'].unique()
-]
+if dataset != 'etth1':
+    forecasts = [
+        train_and_forecast(
+            train[train['unique_id'] == uid]['y'].asfreq(asfreq) if (asfreq and dataset != 'm4') else
+            train[train['unique_id'] == uid]['y'],
+            unique_id=uid,
+            model_type=model_type,
+            order=order,
+            seasonal_order=seasonal_order,
+            horizon=horizon,
+            model_folder=model_folder
+        )
+        for uid in train['unique_id'].unique()
+    ]
+else:
+    forecasts = [
+        train_and_forecast(
+            X_test[i],
+            unique_id=f'{i}',
+            model_type=model_type,
+            order=order,
+            seasonal_order=seasonal_order,
+            horizon=horizon,
+            model_folder=model_folder,
+
+        )
+        # for start_idx, end_idx in range(0, len(test), 720)
+        for i in range(X_test.shape[0])
+    ]
 end_overall_time = time.time()
 
 # Convert forecasts to numpy array
 y_pred = np.array(forecasts)
 
 # Reshape true values
-y_true = test['y'].values.reshape(-1, horizon)
+y_true = test['y'].values.reshape(-1, horizon) if dataset != 'etth1' else y_test.copy()
 
 # Evaluate forecasts
 evaluation = evaluate(y_true, y_pred)
