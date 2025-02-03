@@ -3,7 +3,7 @@ import os
 import time
 import numpy as np
 from datasetsforecast.m4 import M4Evaluation
-from utils.helper import calculate_smape, calculate_mape
+from utils.helper import evaluate
 
 
 def train_and_save_model(model, model_name, X_train, y_train, X_test, y_test, horizon, freq, look_back,
@@ -47,24 +47,8 @@ def train_and_save_model(model, model_name, X_train, y_train, X_test, y_test, ho
 
     # Predict and evaluate
     y_pred = recursive_predict(model, X_test, horizon) if not direct else model.predict(X_test)
-    if dataset == 'm4':
-        evaluation_df = M4Evaluation.evaluate('data', freq, y_pred)
-        evaluation = evaluation_df.to_dict()
-        print("SMAPE:", evaluation['SMAPE'][freq])
-    else:
-        evaluation = {}
-        evaluation['SMAPE'] = calculate_smape(y_test, y_pred)
-        print("SMAPE:", evaluation['SMAPE'])
 
-    evaluation['MAPE'] = calculate_mape(y_test, y_pred)
-    print("MAPE:", evaluation['MAPE'])
-
-    # MAE
-    evaluation['MAE'] = round(np.mean(np.abs(y_test - y_pred)), 3)
-    print("MAE:", evaluation['MAE'])
-    # MSE
-    evaluation['MSE'] = round(np.mean((y_test - y_pred) ** 2), 3)
-    print("MSE:", evaluation['MSE'])
+    evaluation = evaluate(y_test, y_pred)
 
     if not os.path.exists(metadata_path) or retrain:
         # Save metadata
@@ -74,10 +58,7 @@ def train_and_save_model(model, model_name, X_train, y_train, X_test, y_test, ho
             "look_back": look_back,
             "horizon": horizon,
             "time_to_train": round(end_time - start_time, 2),
-            "SMAPE": evaluation['SMAPE'][freq] if dataset=='m4' else evaluation['SMAPE'],
-            "MAPE": evaluation['MAPE'],
-            "MAE": evaluation['MAE'],
-            "MSE": evaluation['MSE'],
+            **evaluation,
             "model_path": model_path,
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
         }

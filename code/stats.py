@@ -6,7 +6,7 @@ import time
 import json
 from datetime import datetime
 from utils.params_stats import get_params
-from utils.helper import calculate_smape, calculate_mape
+from utils.helper import evaluate
 
 dataset = 'm4'
 freq = 'hourly'.capitalize()  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Weekly', 'Daily', 'Hourly'
@@ -54,11 +54,7 @@ y_pred = np.array(forecasts)
 y_true = test['y'].values.reshape(-1, horizon)
 
 # Evaluate forecasts
-evaluation={}
-evaluation['SMAPE'] = calculate_smape(y_true, y_pred)
-print('SMAPE:\n', round(evaluation['SMAPE'], 2))
-evaluation['MAPE'] = calculate_mape(y_true, y_pred)
-print('MAPE:\n', round(evaluation['MAPE'], 2))
+evaluation = evaluate(y_true, y_pred)
 
 # Save evaluation metadata
 metadata_path = os.path.join(model_folder, f"{model_type.lower()}_metadata.json")
@@ -68,8 +64,7 @@ metadata = {
     "order": order,
     "seasonal_order": seasonal_order,
     "horizon": horizon,
-    "SMAPE": round(evaluation['SMAPE'], 2),
-    "MAPE": round(evaluation['MAPE'], 2),
+    **evaluation,
     "time_to_train": round(end_overall_time-start_overall_time, 2),
     "timestamp": datetime.now().isoformat()
 }

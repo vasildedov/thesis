@@ -6,7 +6,7 @@ from utils.preprocess_dl import create_train_windows, create_test_windows
 from utils.models_dl import ComplexLSTM, SimpleRNN, TimeSeriesTransformer, xLSTMTimeSeriesModel
 from utils.train_dl import train_and_save, predict, load_existing_model
 from utils.train_dl_xlstm import get_stack_cfg
-from utils.helper import save_metadata, calculate_smape
+from utils.helper import save_metadata, evaluate
 
 torch.cuda.empty_cache()
 
@@ -146,14 +146,8 @@ for model_name, model_class, model_kwargs in models:
     with torch.no_grad():
         y_pred = predict(model, X_test, horizon, device, scalers, series_ids,
                                    2500 if len_series > 2500 else len_series, direct=direct, multivariate=multivariate)
-        smape = round(calculate_smape(y_true, y_pred), 2)
-        print("SMAPE:", smape)
-        # MAE
-        mae = round(np.mean(np.abs(y_true - y_pred)), 3)
-        print("MAE:", mae)
-        # MSE
-        mse = round(np.mean((y_true - y_pred) ** 2), 3)
-        print("MSE:", mse)
+
+        evaluation = evaluate(y_true, y_pred)
 
     if duration:
         metadata = {
@@ -165,9 +159,7 @@ for model_name, model_class, model_kwargs in models:
             "epochs": epochs,
             "criterion": str(criterion),
             "device": str(device),
-            "SMAPE": smape,
-            "MAE": mae,
-            "MSE": mse,
+            **evaluation,
             "model_path": model_path,
             "time_to_train": round(duration, 2),
             "timestamp": datetime.now().isoformat(),
