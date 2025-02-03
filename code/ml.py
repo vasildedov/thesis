@@ -7,8 +7,8 @@ from utils.helper import calculate_smape
 
 
 # ===== Dataset =====
-dataset = 'm4'
-freq = 'Hourly'
+dataset = 'm3'
+freq = 'Monthly'
 
 if dataset == 'm3':
     from utils.preprocess_m3 import train_test_split
@@ -19,44 +19,33 @@ elif dataset == 'm4':
 elif dataset == 'tourism':
     from utils.preprocess_tourism import train_test_split
     freq = freq.lower()
+elif dataset == 'etth1':
+    from utils.preprocess_ett import train_test_split, get_windows
 
 # ===== Parameters =====
 retrain = True
 direct = True
 
 # Load train and test data
-train, test, horizon = train_test_split(freq)
-look_back = 2*horizon if not (dataset == 'tourism' and freq == 'yearly') else 7
-
-# Generate windows for training
-X_train, y_train = create_train_windows(train, look_back, horizon)
-# Prepare the test window (last 'look_back' points of each series)
-X_test = create_test_windows(train, look_back)
-y_test = test['y'].values.reshape(test['unique_id'].nunique(), horizon)
+if dataset != 'etth1':
+    train, test, horizon = train_test_split(freq)
+    look_back = 2*horizon if not (dataset == 'tourism' and freq == 'yearly') else 7
+    # Generate windows for training
+    X_train, y_train = create_train_windows(train, look_back, horizon)
+    # Prepare the test window (last 'look_back' points of each series)
+    X_test = create_test_windows(train, look_back)
+    y_test = test['y'].values.reshape(test['unique_id'].nunique(), horizon)
+else:
+    train, val, test = train_test_split()
+    look_back = 720
+    horizon = 96
+    X_train, y_train, X_val, y_val, X_test, y_test = get_windows(train, val, test, look_back, horizon)
 
 # ===== Models =====
 # LightGBM
 lgbm_model = LGBMModel(direct=direct)
-y_pred_lgbm, eval_lgbm = train_and_save_model(lgbm_model, "LGBM", X_train, y_train, X_test, y_test, horizon, freq, look_back, retrain, dataset, direct)
+y_pred_lgbm, eval_lgbm = train_and_save_model(lgbm_model, "LGBM", X_train.reshape(X_train.shape[0], -1), y_train, X_test.reshape(X_test.shape[0], -1), y_test, horizon, freq, look_back, retrain, dataset, direct)
 
 # XGBoost
 xgb_model = XGBModel(direct=direct)
-y_pred_xgb, eval_xgb = train_and_save_model(xgb_model, "XGB", X_train, y_train, X_test, y_test, horizon, freq, look_back, retrain, dataset, direct)
-
-if not direct:
-    # Ensemble predictions
-    y_pred_ens = ensemble_predict([lgbm_model, xgb_model], X_test, horizon)
-    eval_ensemble = calculate_smape(y_test, y_pred_ens)
-    # Save ensemble metadata
-    ensemble_metadata_path = f"models/{dataset}/ml_{freq.lower()}/ensemble_metadata.json"
-    ensemble_metadata = {
-        "model_name": "Ensemble",
-        "frequency": freq.lower(),
-        "look_back": look_back,
-        "horizon": horizon,
-        "SMAPE": eval_ensemble,
-        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
-    }
-    with open(ensemble_metadata_path, "w") as f:
-        json.dump(ensemble_metadata, f, indent=4)
-    print(f"Ensemble metadata saved to {ensemble_metadata_path}")
+y_pred_xgb, eval_xgb = train_and_save_model(xgb_model, "XGB", X_train.reshape(X_train.shape[0], -1), y_train, X_test.reshape(X_test.shape[0], -1), y_test, horizon, freq, look_back, retrain, dataset, direct)

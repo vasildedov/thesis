@@ -29,70 +29,61 @@ def train_and_save_model(model, model_name, X_train, y_train, X_test, y_test, ho
         elif model_name == "CatBoost":
             model.model.load_model(model_path, format="json")
         print(f"{model_name} model loaded successfully.")
-
-        # Predict and evaluate using the existing model
-        y_pred = recursive_predict(model, X_test, horizon) if not direct else model.predict(X_test)
-        if dataset=='m4':
-            evaluation_df = M4Evaluation.evaluate('data', freq, y_pred)
-            evaluation = evaluation_df.to_dict()
-            print(f"{model_name} evaluation completed for loaded model.")
-            evaluation['MAPE'] = calculate_mape(y_test, y_pred)
-            print("sMAPE:", evaluation['SMAPE'][freq], "MAPE:", evaluation['MAPE'])
-        else:
-            evaluation = {}
-            evaluation['SMAPE'] = calculate_smape(y_test, y_pred)
-            evaluation['MAPE'] = calculate_mape(y_test, y_pred)
-            print("SMAPE:", evaluation['SMAPE'], "MAPE:", evaluation['MAPE'])
-
-        return y_pred, evaluation
     else:
         print(f"No existing {model_name} model found. Training a new model...")
+        # Train model
+        start_time = time.time()
+        model.fit(X_train, y_train)
+        end_time = time.time()
 
-    # Train model
-    start_time = time.time()
-    model.fit(X_train, y_train)
-    end_time = time.time()
-
-    # Save model
-    if model_name == "LGBM" and not direct:
-        model.model.booster_.save_model(model_path)
-    elif model_name == "XGB":
-        model.model.save_model(model_path)
-    elif model_name == "CatBoost":
-        model.model.save_model(model_path, format="json")
-    print(f"{model_name} model saved to {model_path}")
+        # Save model
+        if model_name == "LGBM" and not direct:
+            model.model.booster_.save_model(model_path)
+        elif model_name == "XGB":
+            model.model.save_model(model_path)
+        elif model_name == "CatBoost":
+            model.model.save_model(model_path, format="json")
+        print(f"{model_name} model saved to {model_path}")
 
     # Predict and evaluate
     y_pred = recursive_predict(model, X_test, horizon) if not direct else model.predict(X_test)
     if dataset == 'm4':
         evaluation_df = M4Evaluation.evaluate('data', freq, y_pred)
         evaluation = evaluation_df.to_dict()
-        print(f"{model_name} evaluation completed for loaded model.")
         print("SMAPE:", evaluation['SMAPE'][freq])
-        evaluation['MAPE'] = calculate_mape(y_test, y_pred)
-        print("MAPE:", evaluation['MAPE'])
-
     else:
         evaluation = {}
         evaluation['SMAPE'] = calculate_smape(y_test, y_pred)
-        evaluation['MAPE'] = calculate_mape(y_test, y_pred)
-        print("SMAPE:", evaluation['SMAPE'], "MAPE:", evaluation['MAPE'])
+        print("SMAPE:", evaluation['SMAPE'])
 
-    # Save metadata
-    metadata = {
-        "model_name": model_name,
-        "frequency": freq.lower(),
-        "look_back": look_back,
-        "horizon": horizon,
-        "time_to_train": round(end_time - start_time, 2),
-        "SMAPE": evaluation['SMAPE'][freq] if dataset=='m4' else evaluation['SMAPE'],
-        "MAPE": evaluation['MAPE'] if dataset=='m4' else evaluation['MAPE'],
-        "model_path": model_path,
-        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
-    }
-    with open(metadata_path, "w") as f:
-        json.dump(metadata, f, indent=4)
-    print(f"{model_name} metadata saved to {metadata_path}")
+    evaluation['MAPE'] = calculate_mape(y_test, y_pred)
+    print("MAPE:", evaluation['MAPE'])
+
+    # MAE
+    evaluation['MAE'] = round(np.mean(np.abs(y_test - y_pred)), 3)
+    print("MAE:", evaluation['MAE'])
+    # MSE
+    evaluation['MSE'] = round(np.mean((y_test - y_pred) ** 2), 3)
+    print("MSE:", evaluation['MSE'])
+
+    if not os.path.exists(metadata_path) or retrain:
+        # Save metadata
+        metadata = {
+            "model_name": model_name,
+            "frequency": freq.lower(),
+            "look_back": look_back,
+            "horizon": horizon,
+            "time_to_train": round(end_time - start_time, 2),
+            "SMAPE": evaluation['SMAPE'][freq] if dataset=='m4' else evaluation['SMAPE'],
+            "MAPE": evaluation['MAPE'],
+            "MAE": evaluation['MAE'],
+            "MSE": evaluation['MSE'],
+            "model_path": model_path,
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+        }
+        with open(metadata_path, "w") as f:
+            json.dump(metadata, f, indent=4)
+        print(f"{model_name} metadata saved to {metadata_path}")
 
     return y_pred, evaluation
 
