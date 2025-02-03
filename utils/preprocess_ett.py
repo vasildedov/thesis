@@ -8,40 +8,55 @@ def to_pandas(ds: datasets.Dataset) -> "pd.DataFrame":
     sequence_columns = [col for col in ds.features if isinstance(ds.features[col], datasets.Sequence)]
     return ds.to_pandas().explode(sequence_columns).infer_objects()
 
-ds = datasets.load_dataset("autogluon/chronos_datasets_extra", "ETTh", split="train", trust_remote_code=True)
-ds.set_format("numpy")  # sequences returned as numpy arrays
-ds_p = to_pandas(ds)
-etth1 = ds_p[ds_p['id']=='ETTh1']
-
-
 # add so y is only the target
-def create_sliding_windows(data, look_back, horizon, step=1):
+def create_sliding_windows(data, look_back, horizon, step=1, target='OT'):
+    # Check if the target column exists
+    if target not in data.columns:
+        raise ValueError(f"Target column '{target}' not found in the data.")
+
     inputs, outputs = [], []
     for i in range(0, len(data) - look_back - horizon + 1, step):
-        inputs.append(data[i:i + look_back])
-        outputs.append(data[i + look_back:i + look_back + horizon])
+        # Include target column as part of the input
+        X_window = data.iloc[i:i + look_back].values  # All features, including the target
+        y_window = data[target].iloc[i + look_back:i + look_back + horizon].values  # Only the target for prediction
+
+        inputs.append(X_window)
+        outputs.append(y_window)
+
     return np.array(inputs), np.array(outputs)
 
-# Example Parameters
-look_back = 720
-horizon = 96
-step_train = 1  # Overlapping windows
-step_val_test = horizon  # Non-overlapping windows
+def train_test_split():
+    ds = datasets.load_dataset("autogluon/chronos_datasets_extra", "ETTh", split="train", trust_remote_code=True)
+    ds.set_format("numpy")  # sequences returned as numpy arrays
+    ds_p = to_pandas(ds)
+    etth1 = ds_p[ds_p['id']=='ETTh1']
+    etth1 = etth1.drop(columns=['id', 'timestamp'])
+    etth1 = etth1.reset_index(drop=True)
 
-# Split data into train, validation, test
-train_data = etth1[:8640]  # First 12 months
-val_data = etth1[8640:11520]  # Next 4 months
-test_data = etth1[11520:]  # Last 4 months
+    train_ind = int(0.6*len(etth1))
+    val_ind = train_ind+int(0.2*len(etth1))
+    # Split data into train, validation, test
+    train_data = etth1[:train_ind]
+    val_data = etth1[train_ind:val_ind]
+    test_data = etth1[val_ind:]
+    return train_data, val_data, test_data
 
-# Generate sliding windows
-X_train, y_train = create_sliding_windows(train_data, look_back, horizon, step_train)
-X_val, y_val = create_sliding_windows(val_data, look_back, horizon, step_val_test)
-X_test, y_test = create_sliding_windows(test_data, look_back, horizon, step_val_test)
+def get_windows(train_data, val_data, test_data,
+                look_back=720, horizon=96, step_train=1):  # Overlapping windows
+    step_val_test = horizon  # Non-overlapping windows
+    # Generate sliding windows
+    X_train, y_train = create_sliding_windows(train_data, look_back, horizon, step_train)
+    X_val, y_val = create_sliding_windows(val_data.reset_index(drop=True), look_back, horizon, step_val_test)
+    X_test, y_test = create_sliding_windows(test_data.reset_index(drop=True), look_back, horizon, step_val_test)
 
-print(f"Training Data: {X_train.shape}, {y_train.shape}")
-print(f"Validation Data: {X_val.shape}, {y_val.shape}")
-print(f"Testing Data: {X_test.shape}, {y_test.shape}")
+    print(f"Training Data: {X_train.shape}, {y_train.shape}")
+    print(f"Validation Data: {X_val.shape}, {y_val.shape}")
+    print(f"Testing Data: {X_test.shape}, {y_test.shape}")
+    return X_train, y_train, X_val, y_val, X_test, y_test
 
+# train_data, val_data, test_data = train_test_split()
+#
+# X_train, y_train, X_val, y_val, X_test, y_test = get_windows(train_data, val_data, test_data)
 
 
 # https://arxiv.org/pdf/2308.11200v1

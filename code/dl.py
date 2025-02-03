@@ -1,17 +1,19 @@
 import os
 import torch
+import numpy as np
 from datetime import datetime
 from utils.preprocess_dl import create_train_windows, create_test_windows
 from utils.models_dl import ComplexLSTM, SimpleRNN, TimeSeriesTransformer, xLSTMTimeSeriesModel
-from utils.train_dl import train_and_predict, predict, load_existing_model
+from utils.train_dl import train_and_save, predict, load_existing_model
 from utils.train_dl_xlstm import get_stack_cfg
 from utils.helper import save_metadata, calculate_smape
 
 torch.cuda.empty_cache()
 
 # ===== Dataset =====
-dataset = 'm4'
+dataset = 'etth1'
 freq = 'hourly'.capitalize()
+multivariate = False
 
 if dataset == 'm3':
     from utils.preprocess_m3 import train_test_split
@@ -20,15 +22,19 @@ elif dataset == 'm4':
 elif dataset == 'tourism':
     from utils.preprocess_tourism import train_test_split
     freq = freq.lower()
+elif dataset == 'etth1':
+    from utils.preprocess_ett import train_test_split, get_windows
+    freq = 'default'
+    multivariate = True
 
 # ===== Parameters =====
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-retrain_mode = True
+retrain_mode = False
 full_load = True
-direct = False  # direct or recursive prediction of horizon steps
+direct = True  # direct or recursive prediction of horizon steps
 
 epochs = 10
-batch_size = 256
+batch_size = 32
 num_layers = 3
 dropout = 0.1
 criterion = torch.nn.MSELoss()  # Can use nn.SmoothL1Loss(beta=1.0) as alternative
@@ -44,8 +50,13 @@ ratio = '1_1'
 embedding_dim = 64
 
 # ===== Load Data =====
-train, test, horizon = train_test_split(freq)
-look_back = 2*horizon if not (dataset == 'tourism' and freq == 'yearly') else 7
+if dataset != 'etth1':
+    train, test, horizon = train_test_split(freq)
+    look_back = 2*horizon if not (dataset == 'tourism' and freq == 'yearly') else 7
+else:
+    train, val, test = train_test_split()
+    look_back = 720
+    horizon = 96
 output_size = horizon if direct else 1
 
 if not full_load:
@@ -55,25 +66,36 @@ if not full_load:
     test = test[test["unique_id"].isin(filtered_series)]
 
 # Create datasets
-X_train, y_train, scalers = create_train_windows(train, look_back, horizon, direct=direct)
-X_test = create_test_windows(train, look_back, scalers)
-X_train = X_train.unsqueeze(-1).to(device)  # Add feature dimension
-X_test = X_test.unsqueeze(-1).to(device)
-y_train = y_train.to(device)
+if dataset != 'etth1':
+    X_train, y_train, scalers = create_train_windows(train, look_back, horizon, direct=direct)
+    X_test = create_test_windows(train, look_back, scalers)
+    X_train = X_train.unsqueeze(-1).to(device)  # Add feature dimension
+    X_test = X_test.unsqueeze(-1).to(device)
+    y_train = y_train.to(device)
+else:
+    X_train, y_train, X_val, y_val, X_test, y_test = get_windows(train, val, test)
+    X_train = torch.tensor(X_train).to(device).float()  # Add feature dimension
+    y_train = torch.tensor(y_train).to(device).float()
+    X_test = torch.tensor(X_test).to(device).float()  # Add feature dimension
+    train['unique_id'] = 'etth1'
+    test['unique_id'] = 'etth1'
+    scalers = None
+input_size = 1 if not multivariate else X_train.shape[-1]
+
 
 # ===== Models and Configurations =====
 models = [
-    # ("SimpleRNN", SimpleRNN,
-    #  {"input_size": 1, "hidden_size": hidden_size, "num_layers": num_layers, "dropout": dropout,
-    #   "output_size": output_size, "direct": direct}),
-    # ("ComplexLSTM", ComplexLSTM,
-    #  {"input_size": 1, "hidden_size": hidden_size, "num_layers": num_layers, "dropout": dropout,
-    #   "output_size": output_size, "direct": direct}),
-    # ("TimeSeriesTransformer", TimeSeriesTransformer,
-    #  {"input_size": 1, "d_model": d_model, "nhead": n_heads, "num_layers": num_layers,
-    #   "dim_feedforward": dim_feedforward, "dropout": dropout, "output_size": output_size, "direct": direct}),
+    ("SimpleRNN", SimpleRNN,
+     {"input_size": input_size, "hidden_size": hidden_size, "num_layers": num_layers, "dropout": dropout,
+      "output_size": output_size, "direct": direct}),
+    ("ComplexLSTM", ComplexLSTM,
+     {"input_size": input_size, "hidden_size": hidden_size, "num_layers": num_layers, "dropout": dropout,
+      "output_size": output_size, "direct": direct}),
+    ("TimeSeriesTransformer", TimeSeriesTransformer,
+     {"input_size": input_size, "d_model": d_model, "nhead": n_heads, "num_layers": num_layers,
+      "dim_feedforward": dim_feedforward, "dropout": dropout, "output_size": output_size, "direct": direct}),
     (f"xLSTM_{ratio}", xLSTMTimeSeriesModel,
-     {"input_size": 1, "output_size": output_size, "embedding_dim": embedding_dim, "direct": direct,
+     {"input_size": input_size, "output_size": output_size, "embedding_dim": embedding_dim, "direct": direct,
       "xlstm_stack": get_stack_cfg(embedding_dim, look_back, device, dropout, ratio=ratio)})
 ]
 
@@ -95,37 +117,45 @@ for model_name, model_class, model_kwargs in models:
 
     # Check for existing model
     model = load_existing_model(model_path, device, model_class, model_kwargs) if not retrain_mode else None
-    y_true = test['y'].values.reshape(num_series if not full_load else train['unique_id'].nunique(), horizon)
+    y_true = test['y'].values.reshape(num_series if not full_load else train['unique_id'].nunique(), horizon) if not multivariate else y_test.copy()
 
     if model is None:
         print(f"No existing model found or retrain mode was enabled for {dataset} - {freq} - {ending}. Training a new {model_name}...")
         model = model_class(**model_kwargs).to(device)
 
         # Train and evaluate
-        y_pred, duration = train_and_predict(
+        model, duration = train_and_save(
             device,
             lambda: model,
             X_train,
             y_train,
-            X_test,
-            scalers,
             epochs,
             batch_size,
-            horizon,
-            test,
             criterion,
-            direct=direct
+            direct=direct,
+            model_path=model_path
         )
-
         print(f"Training completed in {duration:.2f} seconds")
+    else:
+        duration = None
+        print(f"Loaded {model_name} from {model_path}. Performing inference...")
 
-        # Save model
-        torch.save(model.state_dict(), model_path)
-        print(f"{model_name} saved to {model_path}")
-
-        # Calculate SMAPE and save metadata
+    # Predict either way
+    series_ids = test["unique_id"].unique()
+    len_series = len(series_ids)
+    with torch.no_grad():
+        y_pred = predict(model, X_test, horizon, device, scalers, series_ids,
+                                   2500 if len_series > 2500 else len_series, direct=direct, multivariate=multivariate)
         smape = round(calculate_smape(y_true, y_pred), 2)
-        print('sMAPE', smape)
+        print("SMAPE:", smape)
+        # MAE
+        mae = round(np.mean(np.abs(y_true - y_pred)), 3)
+        print("MAE:", mae)
+        # MSE
+        mse = round(np.mean((y_true - y_pred) ** 2), 3)
+        print("MSE:", mse)
+
+    if duration:
         metadata = {
             "model_name": model_name,
             "frequency": freq.lower(),
@@ -136,6 +166,8 @@ for model_name, model_class, model_kwargs in models:
             "criterion": str(criterion),
             "device": str(device),
             "SMAPE": smape,
+            "MAE": mae,
+            "MSE": mse,
             "model_path": model_path,
             "time_to_train": round(duration, 2),
             "timestamp": datetime.now().isoformat(),
@@ -144,18 +176,6 @@ for model_name, model_class, model_kwargs in models:
         }
         save_metadata(metadata, metadata_path)
         print(f"{model_name} Metadata saved to {metadata_path}")
-    else:
-        print(f"Loaded {model_name} from {model_path}. Performing inference...")
-        # Predict using recursive forecasting
-        series_ids = test["unique_id"].unique()
-        len_series = len(series_ids)
-        with torch.no_grad():
-            y_pred = predict(model, X_test, horizon, device, scalers, series_ids,
-                                       2500 if len_series > 2500 else len_series, direct=direct)
-            smape = round(calculate_smape(y_true, y_pred), 2)
-        print(f"{model_name} SMAPE from loaded model: {smape}")
-    # Collect predictions for ensemble
-    # ensemble_predictions.append(y_pred)
 
 
 # ===== Simple Average Ensemble =====

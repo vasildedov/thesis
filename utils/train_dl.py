@@ -20,15 +20,17 @@ def load_existing_model(model_path, device, model_class, model_kwargs):
     if os.path.exists(model_path):
         print(f"Found existing model at {model_path}. Loading...")
         model = model_class(**model_kwargs).to(device)
-        model.load_state_dict(torch.load(model_path, map_location=device))
+        model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
         model.eval()
         return model
     return None
 
 
-def predict(model, X_input, horizon, device, scalers, series_ids=None, batch_size=None, direct=False):
+def predict(model, X_input, horizon, device, scalers=None, series_ids=None, batch_size=None, direct=False,
+            multivariate=False):
     model.eval()
     num_series = X_input.size(0)
+    batch_size = num_series if multivariate else batch_size
     predictions_rescaled = []
 
     with torch.no_grad():
@@ -58,14 +60,16 @@ def predict(model, X_input, horizon, device, scalers, series_ids=None, batch_siz
 
                 batch_predictions = np.concatenate(batch_predictions, axis=1)  # [batch_size, horizon]
 
-            # Reverse scaling for each series
+    try:
+        # Reverse scaling for each series
+        if scalers is not None:
             for i, series_id in enumerate(batch_series_ids):
                 scaler = scalers[series_id]
                 pred_scaled = scaler.inverse_transform(batch_predictions[i].reshape(-1, 1)).flatten()
                 predictions_rescaled.append(pred_scaled)
-
-    try:
-        return np.array(predictions_rescaled).reshape(num_series, horizon)  # [num_series, horizon]
+            return np.array(predictions_rescaled).reshape(num_series, horizon)  # [num_series, horizon]
+        else:
+            return np.array(batch_predictions).reshape(num_series, horizon)
     except ValueError as e:
         print(f"Error reshaping predictions. Expected shape: ({num_series}, {horizon}), "
               f"but got {len(predictions_rescaled)} elements.")
@@ -90,6 +94,10 @@ def train_model(model, X_train, y_train, batch_size, optimizer, criterion, epoch
             batch_y = y_train[indices]
 
             optimizer.zero_grad()
+
+            # Handle potential extra dimensions in input
+            if batch_X.dim() == 4 and batch_X.shape[-1] == 1:  # Check for [batch_size, seq_len, num_features, 1]
+                batch_X = batch_X.squeeze(-1)  # Remove the last dimension
 
             if direct:
                 # Direct multi-step prediction logic
@@ -122,8 +130,8 @@ def train_model(model, X_train, y_train, batch_size, optimizer, criterion, epoch
         # log_weights(model)
 
 
-def train_and_predict(device, model_class_or_instance, X_train, y_train, X_test, scalers, epochs, batch_size, horizon,
-                      test, criterion, optimizer_class=None, learning_rate=1e-3, clip_grad_norm=None,
+def train_and_save(device, model_class_or_instance, X_train, y_train, epochs, batch_size, criterion,
+                      model_path=None, optimizer_class=None, learning_rate=1e-3, clip_grad_norm=None,
                       perform_sanity_checks=False, direct=False):
     # Initialize model
     if isinstance(model_class_or_instance, torch.nn.Module):
@@ -137,7 +145,7 @@ def train_and_predict(device, model_class_or_instance, X_train, y_train, X_test,
 
     # Perform sanity checks if enabled
     if perform_sanity_checks:
-        sanity_check_data(X_train, y_train, X_test)
+        sanity_check_data(X_train, y_train)
 
     # Start timing
     start_time = time.time()
@@ -145,23 +153,21 @@ def train_and_predict(device, model_class_or_instance, X_train, y_train, X_test,
     # Train the model
     train_model(model, X_train, y_train, batch_size, optimizer, criterion, epochs, device, clip_grad_norm, direct)
 
+    # Save model
+    torch.save(model.state_dict(), model_path)
+    print(f"model saved to {model_path}")
+
     # End timing
     end_time = time.time()
 
-    # Predict using recursive forecasting
-    series_ids = test["unique_id"].unique()
-    num_series = len(series_ids)
-    y_pred = predict(model, X_test, horizon, device, scalers, series_ids, 2500 if num_series>2500 else num_series,
-                     direct)
-    return y_pred, end_time - start_time
+    return model, end_time - start_time
 
 
 # Sanity checks for input data
-def sanity_check_data(X_train, y_train, X_test):
+def sanity_check_data(X_train, y_train):
     print("Sanity Check: Input Data")
     print(f"X_train shape: {X_train.shape}")
     print(f"y_train shape: {y_train.shape}")
-    print(f"X_test shape: {X_test.shape}")
     print(f"X_train contains NaN: {torch.isnan(X_train).any().item()}")
     print(f"y_train contains NaN: {torch.isnan(y_train).any().item()}")
     print(f"X_train contains Inf: {torch.isinf(X_train).any().item()}")
