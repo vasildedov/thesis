@@ -4,7 +4,7 @@ import pandas as pd
 from utils.evaluation import calculate_metrics_per_frequency, calculate_weighted_metrics
 
 
-for dataset in ['m4', 'm3', 'tourism', 'etth1', 'etth2']:
+for dataset in ['m4', 'm3', 'tourism', 'etth1']:
     # args
 
     # Define frequencies and corresponding weights
@@ -13,6 +13,7 @@ for dataset in ['m4', 'm3', 'tourism', 'etth1', 'etth2']:
         num_series = [174, 1428, 756, 645]
     elif dataset == 'm4':
         frequencies = ['hourly', 'daily', 'weekly', 'monthly', 'quarterly', 'yearly']
+        num_series = [414, 4227, 359, 48000, 24000, 23000]
     elif dataset == 'tourism':
         frequencies = ['monthly', 'quarterly', 'yearly']
         num_series = [366, 427, 518]
@@ -50,6 +51,24 @@ for dataset in ['m4', 'm3', 'tourism', 'etth1', 'etth2']:
     # overall metrics
     metrics_per_dataset = calculate_weighted_metrics(models, dataset, frequencies, weights).reset_index()
     print(metrics_per_dataset)
+
+    if dataset == 'etth1':
+        # Calculate metrics for the first dataset (etth1)
+        metrics_per_dataset = calculate_weighted_metrics(models, 'etth1', frequencies, weights, coalesce_suffixes=True)
+        metrics_per_dataset.columns = pd.MultiIndex.from_product([['etth1'], metrics_per_dataset.columns])
+
+        # Calculate metrics for the second dataset (etth2)
+        metrics_per_dataset2 = calculate_weighted_metrics(models, 'etth2', frequencies, weights, coalesce_suffixes=True)
+        metrics_per_dataset2.columns = pd.MultiIndex.from_product([['etth2'], metrics_per_dataset2.columns])
+
+        # Merge both datasets using MultiIndex on columns
+        metrics_per_dataset = pd.concat([metrics_per_dataset, metrics_per_dataset2], axis=1)
+
+        # Reset index for better visualization
+        metrics_per_dataset = metrics_per_dataset.reset_index()
+
+        # Print output
+        print(metrics_per_dataset)
 
     # save to LateX
     metrics_per_dataset['Model'] = metrics_per_dataset['Model'].replace(models_names_dict)

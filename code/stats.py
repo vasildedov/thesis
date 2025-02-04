@@ -10,6 +10,7 @@ from utils.helper import evaluate
 dataset = 'etth2'
 freq = 'hourly'.capitalize()  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Weekly', 'Daily', 'Hourly'
 model_type = 'SARIMA'
+multivariate = False
 
 order, seasonal_order, asfreq = get_params(freq, model_type)
 
@@ -22,9 +23,10 @@ elif dataset == 'tourism':
     freq = freq.lower()
 else:
     from utils.preprocess_ett import train_test_split, get_windows
+    multivariate = True
 
 # Load data
-if dataset != 'etth1':
+if not multivariate:
     train, test, horizon = train_test_split(freq)
     if dataset != 'm4':
         train.set_index('ds', inplace=True)
@@ -32,7 +34,7 @@ else:
     train, val, test = train_test_split(group=dataset, multivariate=False)
     horizon = 96
     X_train, y_train, X_val, y_val, X_test, y_test = get_windows(train, val, test, 720, horizon)
-
+    train['unique_id'] = 'etth1'
 
 # Define the folder to save all models
 model_folder = f"models/{dataset}/recursive/stats_{freq.lower()}/"
@@ -40,7 +42,7 @@ os.makedirs(model_folder, exist_ok=True)
 
 start_overall_time = time.time()
 # Using parallel processing to speed up training and forecasting
-if dataset != 'etth1':
+if not multivariate:
     forecasts = [
         train_and_forecast(
             train[train['unique_id'] == uid]['y'].asfreq(asfreq) if (asfreq and dataset != 'm4') else
