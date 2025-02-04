@@ -7,9 +7,9 @@ from datetime import datetime
 from utils.params_stats import get_params
 from utils.helper import evaluate
 
-dataset = 'etth1'
+dataset = 'etth2'
 freq = 'hourly'.capitalize()  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Weekly', 'Daily', 'Hourly'
-model_type = 'ARIMA'
+model_type = 'SARIMA'
 
 order, seasonal_order, asfreq = get_params(freq, model_type)
 
@@ -20,7 +20,7 @@ elif dataset == 'm4':
 elif dataset == 'tourism':
     from utils.preprocess_tourism import train_test_split
     freq = freq.lower()
-elif dataset == 'etth1':
+else:
     from utils.preprocess_ett import train_test_split, get_windows
 
 # Load data
@@ -29,7 +29,7 @@ if dataset != 'etth1':
     if dataset != 'm4':
         train.set_index('ds', inplace=True)
 else:
-    train, val, test = train_test_split(multivariate=False)
+    train, val, test = train_test_split(group=dataset, multivariate=False)
     horizon = 96
     X_train, y_train, X_val, y_val, X_test, y_test = get_windows(train, val, test, 720, horizon)
 
@@ -75,7 +75,7 @@ end_overall_time = time.time()
 y_pred = np.array(forecasts)
 
 # Reshape true values
-y_true = test['y'].values.reshape(-1, horizon) if dataset != 'etth1' else y_test.copy()
+y_true = y_test.copy()
 
 # Evaluate forecasts
 evaluation = evaluate(y_true, y_pred)

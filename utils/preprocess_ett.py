@@ -25,26 +25,28 @@ def create_sliding_windows(data, look_back, horizon, step=1, target='OT'):
 
     return np.array(inputs), np.array(outputs)
 
-def train_test_split(multivariate=True):
+def train_test_split(group="etth1", multivariate=True):
     ds = datasets.load_dataset("autogluon/chronos_datasets_extra", "ETTh", split="train", trust_remote_code=True)
     ds.set_format("numpy")  # sequences returned as numpy arrays
     ds_p = to_pandas(ds)
-    etth1 = ds_p[ds_p['id']=='ETTh1']
-    etth1 = etth1.drop(columns=['id'])
-    if multivariate:
-        etth1 = etth1.drop(columns=['timestamp'])
-        etth1 = etth1.reset_index(drop=True)
-
+    if group == 'etth1':
+        df = ds_p[ds_p['id']=='ETTh1']
     else:
-        etth1 = etth1[['OT', 'timestamp']]
-        etth1 = etth1.set_index('timestamp')
+        df = ds_p[ds_p['id']=='ETTh2']
+    df = df.drop(columns=['id'])
+    if multivariate:
+        df = df.drop(columns=['timestamp'])
+        df = df.reset_index(drop=True)
+    else:
+        df = df[['OT', 'timestamp']]
+        df = df.set_index('timestamp')
 
-    train_ind = int(0.6*len(etth1))
-    val_ind = train_ind+int(0.2*len(etth1))
+    train_ind = int(0.6*len(df))
+    val_ind = train_ind+int(0.2*len(df))
     # Split data into train, validation, test
-    train_data = etth1[:train_ind]
-    val_data = etth1[train_ind:val_ind]
-    test_data = etth1[val_ind:]
+    train_data = df[:train_ind]
+    val_data = df[train_ind:val_ind]
+    test_data = df[val_ind:]
     return train_data, val_data, test_data
 
 def get_windows(train_data, val_data, test_data,

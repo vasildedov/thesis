@@ -11,7 +11,7 @@ from utils.helper import save_metadata, evaluate
 torch.cuda.empty_cache()
 
 # ===== Dataset =====
-dataset = 'etth1'
+dataset = 'etth2'
 freq = 'hourly'.capitalize()
 multivariate = False
 
@@ -22,14 +22,14 @@ elif dataset == 'm4':
 elif dataset == 'tourism':
     from utils.preprocess_tourism import train_test_split
     freq = freq.lower()
-elif dataset == 'etth1':
+else:
     from utils.preprocess_ett import train_test_split, get_windows
     freq = 'default'
     multivariate = True
 
 # ===== Parameters =====
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-retrain_mode = False
+retrain_mode = True
 full_load = True
 direct = True  # direct or recursive prediction of horizon steps
 
@@ -46,15 +46,14 @@ d_model = 64
 n_heads = 8
 dim_feedforward = 128
 # xlstm
-ratio = '1_1'
 embedding_dim = 64
 
 # ===== Load Data =====
-if dataset != 'etth1':
+if not multivariate:
     train, test, horizon = train_test_split(freq)
     look_back = 2*horizon if not (dataset == 'tourism' and freq == 'yearly') else 7
 else:
-    train, val, test = train_test_split()
+    train, val, test = train_test_split(group='etth2')
     look_back = 720
     horizon = 96
 output_size = horizon if direct else 1
@@ -66,7 +65,7 @@ if not full_load:
     test = test[test["unique_id"].isin(filtered_series)]
 
 # Create datasets
-if dataset != 'etth1':
+if not multivariate:
     X_train, y_train, scalers = create_train_windows(train, look_back, horizon, direct=direct)
     X_test = create_test_windows(train, look_back, scalers)
     X_train = X_train.unsqueeze(-1).to(device)  # Add feature dimension
@@ -77,8 +76,8 @@ else:
     X_train = torch.tensor(X_train).to(device).float()  # Add feature dimension
     y_train = torch.tensor(y_train).to(device).float()
     X_test = torch.tensor(X_test).to(device).float()  # Add feature dimension
-    train['unique_id'] = 'etth1'
-    test['unique_id'] = 'etth1'
+    train['unique_id'] = dataset
+    test['unique_id'] = dataset
     scalers = None
 input_size = 1 if not multivariate else X_train.shape[-1]
 
@@ -94,9 +93,15 @@ models = [
     ("TimeSeriesTransformer", TimeSeriesTransformer,
      {"input_size": input_size, "d_model": d_model, "nhead": n_heads, "num_layers": num_layers,
       "dim_feedforward": dim_feedforward, "dropout": dropout, "output_size": output_size, "direct": direct}),
-    (f"xLSTM_{ratio}", xLSTMTimeSeriesModel,
+    (f"xLSTM_1_0", xLSTMTimeSeriesModel,
      {"input_size": input_size, "output_size": output_size, "embedding_dim": embedding_dim, "direct": direct,
-      "xlstm_stack": get_stack_cfg(embedding_dim, look_back, device, dropout, ratio=ratio)})
+      "xlstm_stack": get_stack_cfg(embedding_dim, look_back, device, dropout, ratio='1_0')}),
+    (f"xLSTM_1_1", xLSTMTimeSeriesModel,
+     {"input_size": input_size, "output_size": output_size, "embedding_dim": embedding_dim, "direct": direct,
+      "xlstm_stack": get_stack_cfg(embedding_dim, look_back, device, dropout, ratio='1_1')}),
+    (f"xLSTM_0_1", xLSTMTimeSeriesModel,
+     {"input_size": input_size, "output_size": output_size, "embedding_dim": embedding_dim, "direct": direct,
+      "xlstm_stack": get_stack_cfg(embedding_dim, look_back, device, dropout, ratio='0_1')}),
 ]
 
 # ensemble_predictions = []

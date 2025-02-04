@@ -2,7 +2,6 @@ import json
 import os
 import time
 import numpy as np
-from datasetsforecast.m4 import M4Evaluation
 from utils.helper import evaluate
 
 

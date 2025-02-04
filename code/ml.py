@@ -7,8 +7,9 @@ from utils.helper import calculate_smape
 
 
 # ===== Dataset =====
-dataset = 'm3'
-freq = 'Monthly'
+dataset = 'etth2'
+freq = 'default'
+multivariate = False
 
 if dataset == 'm3':
     from utils.preprocess_m3 import train_test_split
@@ -19,15 +20,16 @@ elif dataset == 'm4':
 elif dataset == 'tourism':
     from utils.preprocess_tourism import train_test_split
     freq = freq.lower()
-elif dataset == 'etth1':
+else:
     from utils.preprocess_ett import train_test_split, get_windows
+    multivariate = True
 
 # ===== Parameters =====
 retrain = True
 direct = True
 
 # Load train and test data
-if dataset != 'etth1':
+if not multivariate:
     train, test, horizon = train_test_split(freq)
     look_back = 2*horizon if not (dataset == 'tourism' and freq == 'yearly') else 7
     # Generate windows for training
@@ -36,7 +38,7 @@ if dataset != 'etth1':
     X_test = create_test_windows(train, look_back)
     y_test = test['y'].values.reshape(test['unique_id'].nunique(), horizon)
 else:
-    train, val, test = train_test_split()
+    train, val, test = train_test_split(group=dataset)
     look_back = 720
     horizon = 96
     X_train, y_train, X_val, y_val, X_test, y_test = get_windows(train, val, test, look_back, horizon)
