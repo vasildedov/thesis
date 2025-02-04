@@ -2,6 +2,9 @@ import os
 import json
 import pandas as pd
 import scipy.stats as stats
+import numpy as np
+from tabulate import tabulate
+
 
 def load_metadata(base_path, model, model_type, frequency):
     folder = f'{model_type}_{frequency}'
@@ -138,3 +141,25 @@ def calculate_metrics_per_frequency(models, dataset, frequencies):
 
     metrics_df = pd.DataFrame(data).pivot(index=['Frequency', 'Model'], columns=['Suffix', 'Metric'], values='Value')
     return metrics_df.reindex(models.keys(), level='Model')
+
+
+def stats_test_table(data_A, data_B, metric='sMAPE'):
+    t_stat, p_value = stats.ttest_rel(data_A, data_B)
+
+    # Compute means and standard deviations
+    mean_A, std_A = np.mean(data_A), np.std(data_A, ddof=1)
+    mean_B, std_B = np.mean(data_B), np.std(data_B, ddof=1)
+
+    # Create DataFrame for the results
+    table_data = pd.DataFrame({
+        "Metric": [metric],
+        "Model A (Mean ± SD)": [f"{mean_A:.2f} ± {std_A:.2f}"],
+        "Model B (Mean ± SD)": [f"{mean_B:.2f} ± {std_B:.2f}"],
+        "t-statistic": [f"{t_stat:.2f}"],
+        "p-value": [f"{p_value:.2f}"]})
+
+    # Print the table
+    print("\nStatistical Comparison of Model Performance:\n")
+    print(tabulate(table_data, headers='keys', tablefmt='grid'))
+    return table_data
+
