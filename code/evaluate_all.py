@@ -4,7 +4,7 @@ import pandas as pd
 from utils.evaluation import calculate_metrics_per_frequency, calculate_weighted_metrics
 
 
-for dataset in ['m4', 'm3', 'tourism']:
+for dataset in ['m4', 'm3', 'tourism', 'etth1', 'etth2']:
     # args
 
     # Define frequencies and corresponding weights
@@ -13,10 +13,12 @@ for dataset in ['m4', 'm3', 'tourism']:
         num_series = [174, 1428, 756, 645]
     elif dataset == 'm4':
         frequencies = ['hourly', 'daily', 'weekly', 'monthly', 'quarterly', 'yearly']
-        num_series = [414, 4227, 359, 48000, 24000, 23000]
-    else:
+    elif dataset == 'tourism':
         frequencies = ['monthly', 'quarterly', 'yearly']
         num_series = [366, 427, 518]
+    else:
+        frequencies = ['default']
+        num_series = [1]
 
     all_series = sum(num_series)
     # Construct the weights dictionary
