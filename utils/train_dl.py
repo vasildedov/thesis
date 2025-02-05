@@ -30,8 +30,8 @@ def predict(model, X_input, horizon, device, scalers=None, series_ids=None, batc
             multivariate=False):
     model.eval()
     num_series = X_input.size(0)
-    batch_size = num_series if multivariate else batch_size
-    predictions_rescaled = []
+    batch_size = 1 if multivariate else batch_size
+    all_predictions = []
 
     with torch.no_grad():
         for start_idx in range(0, num_series, batch_size or num_series):
@@ -60,19 +60,18 @@ def predict(model, X_input, horizon, device, scalers=None, series_ids=None, batc
 
                 batch_predictions = np.concatenate(batch_predictions, axis=1)  # [batch_size, horizon]
 
+            if scalers is not None:
+                for i, series_id in enumerate(batch_series_ids):
+                    scaler = scalers[series_id]
+                    pred_scaled = scaler.inverse_transform(batch_predictions[i].reshape(-1, 1)).flatten()
+                    all_predictions.append(pred_scaled)
+            else:
+                all_predictions.append(batch_predictions)
     try:
-        # Reverse scaling for each series
-        if scalers is not None:
-            for i, series_id in enumerate(batch_series_ids):
-                scaler = scalers[series_id]
-                pred_scaled = scaler.inverse_transform(batch_predictions[i].reshape(-1, 1)).flatten()
-                predictions_rescaled.append(pred_scaled)
-            return np.array(predictions_rescaled).reshape(num_series, horizon)  # [num_series, horizon]
-        else:
-            return np.array(batch_predictions).reshape(num_series, horizon)
+        return np.array(all_predictions).reshape(num_series, horizon)  # [num_series, horizon]
     except ValueError as e:
         print(f"Error reshaping predictions. Expected shape: ({num_series}, {horizon}), "
-              f"but got {len(predictions_rescaled)} elements.")
+              f"but got {len(all_predictions)} elements.")
         raise e
 
 
