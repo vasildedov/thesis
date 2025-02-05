@@ -31,9 +31,9 @@ if not multivariate:
     if dataset != 'm4':
         train.set_index('ds', inplace=True)
 else:
-    train, val, test = train_test_split(group=dataset, multivariate=False)
+    train, val, test = train_test_split(group=dataset, multivariate=True)
     horizon = 96
-    X_train, y_train, X_val, y_val, X_test, y_test = get_windows(train, val, test, 720, horizon)
+    X_train, y_train, X_val, y_val, X_test, y_test = get_windows(train, val, test, 720, horizon, get_exog=True)
     train['unique_id'] = 'etth1'
 
 # Define the folder to save all models
@@ -45,7 +45,7 @@ start_overall_time = time.time()
 if not multivariate:
     forecasts = [
         train_and_forecast(
-            train[train['unique_id'] == uid]['y'].asfreq(asfreq) if (asfreq and dataset != 'm4') else
+            train[train['unique_id'] == uid]['y'].asfreq('Y') if (asfreq and dataset != 'm4') else
             train[train['unique_id'] == uid]['y'],
             unique_id=uid,
             model_type=model_type,
@@ -59,16 +59,16 @@ if not multivariate:
 else:
     forecasts = [
         train_and_forecast(
-            X_test[i],
+            X_test[i, :, -1],
             unique_id=f'{i}',
             model_type=model_type,
             order=order,
             seasonal_order=seasonal_order,
             horizon=horizon,
             model_folder=model_folder,
-
+            exogenous_train=X_test[i, :, :-1],
+            exogenous_test=y_test[i, :, :-1]
         )
-        # for start_idx, end_idx in range(0, len(test), 720)
         for i in range(X_test.shape[0])
     ]
 end_overall_time = time.time()
@@ -77,7 +77,7 @@ end_overall_time = time.time()
 y_pred = np.array(forecasts)
 
 # Reshape true values
-y_true = y_test.copy()
+y_true = test['y'].values.reshape(-1, horizon) if not multivariate else y_test[:, :, -1].copy()
 
 # Evaluate forecasts
 evaluation = evaluate(y_true, y_pred)
