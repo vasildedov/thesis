@@ -5,6 +5,7 @@ from utils.results_helper import calculate_metrics_per_frequency, calculate_weig
 import scipy.stats as stats
 
 all_results = {}
+multivariate = False
 
 for dataset in ['m4', 'm3', 'tourism', 'etth1', 'etth2']:
     # args
@@ -22,6 +23,7 @@ for dataset in ['m4', 'm3', 'tourism', 'etth1', 'etth2']:
     else:
         frequencies = ['default']
         num_series = [1]
+        multivariate = True
 
     all_series = sum(num_series)
     # Construct the weights dictionary
@@ -50,27 +52,13 @@ for dataset in ['m4', 'm3', 'tourism', 'etth1', 'etth2']:
     os.makedirs(output_folder, exist_ok=True)
 
     # calculations
-    # overall metrics
-    metrics_per_dataset = calculate_weighted_metrics(models, dataset, frequencies, weights).reset_index()
+    if multivariate:
+        metrics_per_dataset = calculate_weighted_metrics(models, dataset, frequencies, weights, include_all=True, coalesce_suffixes=True).reset_index()
+        metrics_per_dataset = metrics_per_dataset.drop(columns=['MAPE', 'sMAPE'])
+        metrics_per_dataset = metrics_per_dataset[['Model', 'MAE', 'MSE', 'Training Time (s)']]
+    else:
+        metrics_per_dataset = calculate_weighted_metrics(models, dataset, frequencies, weights).reset_index()
     print(metrics_per_dataset)
-
-    if dataset == 'etth1':
-        # Calculate metrics for the first dataset (etth1)
-        metrics_per_dataset = calculate_weighted_metrics(models, 'etth1', frequencies, weights, coalesce_suffixes=True)
-        metrics_per_dataset.columns = pd.MultiIndex.from_product([['etth1'], metrics_per_dataset.columns])
-
-        # Calculate metrics for the second dataset (etth2)
-        metrics_per_dataset2 = calculate_weighted_metrics(models, 'etth2', frequencies, weights, coalesce_suffixes=True)
-        metrics_per_dataset2.columns = pd.MultiIndex.from_product([['etth2'], metrics_per_dataset2.columns])
-
-        # Merge both datasets using MultiIndex on columns
-        metrics_per_dataset = pd.concat([metrics_per_dataset, metrics_per_dataset2], axis=1)
-
-        # Reset index for better visualization
-        metrics_per_dataset = metrics_per_dataset.reset_index()
-
-        # Print output
-        print(metrics_per_dataset)
 
     # save to LateX
     metrics_per_dataset['Model'] = metrics_per_dataset['Model'].replace(models_names_dict)
@@ -195,44 +183,3 @@ latex_table = table.to_latex(index=False,
 output_path = os.path.join(output_folder, f"t_gb_dl.tex")
 with open(output_path, 'w') as f:
     f.write(latex_table)
-
-"""
-import numpy as np
-import scipy.stats as stats
-
-# Sample sMAPE scores
-model_A = [0.12, 0.15, 0.14, 0.10, 0.13]
-model_B = [0.18, 0.20, 0.21, 0.17, 0.19]
-
-# Perform an independent t-test
-t_stat, p_value = stats.ttest_ind(model_A, model_B)
-
-print(f"T-statistic: {t_stat:.4f}")
-print(f"P-value: {p_value:.4f}")
-
-T-statistic: -5.4772
-P-value: 0.0006
-Interpretation
-T-statistic = -5.48
-
-The negative value means model_A has a lower mean sMAPE than model_B.
-The magnitude 5.48 is large, suggesting a significant difference.
-P-value = 0.0006
-
-Since p-value < 0.05, we reject the null hypothesis.
-Conclusion: Model A's sMAPE is significantly different from Model B's sMAPE.
-"""
-
-#
-# models = {
-#     'ARIMA': 'stats',
-#     'SARIMA': 'stats',
-#     'LightGBM': 'ml',
-#     'XGBoost': 'ml',
-#     'RNN': 'dl',
-#     'LSTM': 'dl',
-#     'Transformer': 'dl',
-#     'xLSTM(1:0)': 'dl',
-#     'xLSTM(0:1)': 'dl',
-#     'xLSTM(1:1)': 'dl'
-# }

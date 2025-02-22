@@ -32,9 +32,9 @@ if not multivariate:
         train.set_index('ds', inplace=True)
 else:
     train, val, test = train_test_split(group=dataset, multivariate=True)
-    horizon = 96
+    horizon = 24
     X_train, y_train, X_val, y_val, X_test, y_test = get_windows(train, val, test, 720, horizon, get_exog=True)
-    train['unique_id'] = 'etth1'
+    train['unique_id'] = dataset
 
 # Define the folder to save all models
 model_folder = f"models/{dataset}/recursive/stats_{freq.lower()}/"
@@ -45,7 +45,7 @@ start_overall_time = time.time()
 if not multivariate:
     forecasts = [
         train_and_forecast(
-            train[train['unique_id'] == uid]['y'].asfreq('Y') if (asfreq and dataset != 'm4') else
+            train[train['unique_id'] == uid]['y'].asfreq(asfreq) if (asfreq and dataset != 'm4') else
             train[train['unique_id'] == uid]['y'],
             unique_id=uid,
             model_type=model_type,

@@ -1,9 +1,6 @@
-import time
-import json
 from utils.preprocess_ml import create_train_windows, create_test_windows
-from utils.train_ml import train_and_save_model, ensemble_predict
+from utils.train_ml import train_and_save_model
 from utils.models_ml import LGBMModel, XGBModel
-from utils.helper import calculate_smape
 
 
 # ===== Dataset =====
@@ -40,7 +37,7 @@ if not multivariate:
 else:
     train, val, test = train_test_split(group=dataset)
     look_back = 720
-    horizon = 96
+    horizon = 24
     X_train, y_train, X_val, y_val, X_test, y_test = get_windows(train, val, test, look_back, horizon)
 
 # ===== Models =====

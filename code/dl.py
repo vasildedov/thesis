@@ -29,7 +29,7 @@ else:
 
 # ===== Parameters =====
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-retrain_mode = True
+retrain_mode = False
 full_load = True
 direct = True  # direct or recursive prediction of horizon steps
 
@@ -53,9 +53,9 @@ if not multivariate:
     train, test, horizon = train_test_split(freq)
     look_back = 2*horizon if not (dataset == 'tourism' and freq == 'yearly') else 7
 else:
-    train, val, test = train_test_split(group='etth2')
+    train, val, test = train_test_split(group=dataset)
     look_back = 720
-    horizon = 96
+    horizon = 24
 output_size = horizon if direct else 1
 
 if not full_load:
@@ -72,7 +72,7 @@ if not multivariate:
     X_test = X_test.unsqueeze(-1).to(device)
     y_train = y_train.to(device)
 else:
-    X_train, y_train, X_val, y_val, X_test, y_test = get_windows(train, val, test)
+    X_train, y_train, X_val, y_val, X_test, y_test = get_windows(train, val, test, look_back=look_back, horizon=horizon)
     X_train = torch.tensor(X_train).to(device).float()  # Add feature dimension
     y_train = torch.tensor(y_train).to(device).float()
     X_test = torch.tensor(X_test).to(device).float()  # Add feature dimension
@@ -93,13 +93,13 @@ models = [
     ("TimeSeriesTransformer", TimeSeriesTransformer,
      {"input_size": input_size, "d_model": d_model, "nhead": n_heads, "num_layers": num_layers,
       "dim_feedforward": dim_feedforward, "dropout": dropout, "output_size": output_size, "direct": direct}),
-    (f"xLSTM_1_0", xLSTMTimeSeriesModel,
+    ("xLSTM_1_0", xLSTMTimeSeriesModel,
      {"input_size": input_size, "output_size": output_size, "embedding_dim": embedding_dim, "direct": direct,
       "xlstm_stack": get_stack_cfg(embedding_dim, look_back, device, dropout, ratio='1_0')}),
-    (f"xLSTM_1_1", xLSTMTimeSeriesModel,
+    ("xLSTM_1_1", xLSTMTimeSeriesModel,
      {"input_size": input_size, "output_size": output_size, "embedding_dim": embedding_dim, "direct": direct,
       "xlstm_stack": get_stack_cfg(embedding_dim, look_back, device, dropout, ratio='1_1')}),
-    (f"xLSTM_0_1", xLSTMTimeSeriesModel,
+    ("xLSTM_0_1", xLSTMTimeSeriesModel,
      {"input_size": input_size, "output_size": output_size, "embedding_dim": embedding_dim, "direct": direct,
       "xlstm_stack": get_stack_cfg(embedding_dim, look_back, device, dropout, ratio='0_1')}),
 ]
