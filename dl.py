@@ -5,7 +5,7 @@ from data_preprocessing.preprocess_dl import create_train_windows, create_test_w
 from models.models_dl import ComplexLSTM, SimpleRNN, TimeSeriesTransformer, xLSTMTimeSeriesModel
 from models.train_dl import train_and_save, predict, load_existing_model
 from models.train_dl_xlstm import get_stack_cfg
-from utils.helper import save_metadata, evaluate
+from utils.helpers import save_metadata, evaluate
 
 torch.cuda.empty_cache()
 

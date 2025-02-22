@@ -5,7 +5,7 @@ import time
 import json
 from datetime import datetime
 from data_preprocessing.params_stats import get_params
-from utils.helper import evaluate
+from utils.helpers import evaluate
 
 dataset = 'etth2'
 freq = 'hourly'.capitalize()  # Options: 'Yearly', 'Quarterly', 'Monthly', 'Weekly', 'Daily', 'Hourly'

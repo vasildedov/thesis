@@ -2,7 +2,7 @@ import json
 import os
 import time
 import numpy as np
-from utils.helper import evaluate
+from utils.helpers import evaluate
 
 
 def train_and_save_model(model, model_name, X_train, y_train, X_test, y_test, horizon, freq, look_back,

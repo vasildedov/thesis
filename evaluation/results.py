@@ -1,8 +1,7 @@
 import json
 import os
 import pandas as pd
-from utils.results_helper import calculate_metrics_per_frequency, calculate_weighted_metrics , stats_test_table
-import scipy.stats as stats
+from utils.helpers import calculate_metrics_per_frequency, calculate_weighted_metrics , stats_test_table
 
 all_results = {}
 multivariate = False
