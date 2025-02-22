@@ -22,7 +22,7 @@ else:
     multivariate = True
 
 # ===== Parameters =====
-retrain = True
+retrain = False
 direct = True
 
 # Load train and test data
