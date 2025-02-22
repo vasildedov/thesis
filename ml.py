@@ -1,6 +1,6 @@
-from utils.preprocess_ml import create_train_windows, create_test_windows
-from utils.train_ml import train_and_save_model
-from utils.models_ml import LGBMModel, XGBModel
+from data_preprocessing.preprocess_ml import create_train_windows, create_test_windows
+from models.train_ml import train_and_save_model
+from models.models_ml import LGBMModel, XGBModel
 
 
 # ===== Dataset =====
@@ -9,16 +9,16 @@ freq = 'default'
 multivariate = False
 
 if dataset == 'm3':
-    from utils.preprocess_m3 import train_test_split
+    from data_preprocessing.preprocess_m3 import train_test_split
     freq = freq.capitalize()
 elif dataset == 'm4':
-    from utils.preprocess_m4 import train_test_split
+    from data_preprocessing.preprocess_m4 import train_test_split
     freq = freq.capitalize()
 elif dataset == 'tourism':
-    from utils.preprocess_tourism import train_test_split
+    from data_preprocessing.preprocess_tourism import train_test_split
     freq = freq.lower()
 else:
-    from utils.preprocess_ett import train_test_split, get_windows
+    from data_preprocessing.preprocess_ett import train_test_split, get_windows
     multivariate = True
 
 # ===== Parameters =====

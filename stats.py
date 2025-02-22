@@ -1,10 +1,10 @@
 import numpy as np
-from utils.train_stats import train_and_forecast
+from models.train_stats import train_and_forecast
 import os
 import time
 import json
 from datetime import datetime
-from utils.params_stats import get_params
+from data_preprocessing.params_stats import get_params
 from utils.helper import evaluate
 
 dataset = 'etth2'
@@ -15,14 +15,14 @@ multivariate = False
 order, seasonal_order, asfreq = get_params(freq, model_type)
 
 if dataset == 'm3':
-    from utils.preprocess_m3 import train_test_split
+    from data_preprocessing.preprocess_m3 import train_test_split
 elif dataset == 'm4':
-    from utils.preprocess_m4 import train_test_split
+    from data_preprocessing.preprocess_m4 import train_test_split
 elif dataset == 'tourism':
-    from utils.preprocess_tourism import train_test_split
+    from data_preprocessing.preprocess_tourism import train_test_split
     freq = freq.lower()
 else:
-    from utils.preprocess_ett import train_test_split, get_windows
+    from data_preprocessing.preprocess_ett import train_test_split, get_windows
     multivariate = True
 
 # Load data
