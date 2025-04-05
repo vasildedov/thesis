@@ -19,14 +19,12 @@ thesis/
 │   └── models_dl.py       # Defines classes of deep learning models
 │   └── train_X.py         # Defines functions to train X type of models
 │
-├── evaluation/            # Scripts for model evaluation and result visualization
-│   └── results.py         # Main script for evaluation and results analysis
-│
 ├── utils/                 # Utility functions used across different scripts
 │   └── helper.py          # Helper functions for data processing and evaluation
 │
 ├── .gitignore             # Git ignore file to exclude unnecessary files
 ├── dl.py                  # Script for running deep learning experiments
+├── evaluate_results.py    # Script for evaluation and results analysis
 ├── ml.py                  # Script for running machine learning experiments
 └── README.md              # Project overview and documentation
 ├── requirements.txt       # Python dependencies for the project
@@ -99,5 +97,5 @@ python stats.py
 Once the models are trained, use the evaluation script to assess its performance. This script calculates various error metrics (e.g., RMSE, MAE) and exports the results as .tex tables.
 
 ```bash
-python evaluation/results.py
+python evaluate_results.py
 ```
